@@ -72,11 +72,11 @@ float by[4] = {0.015, 0.1, -0.1, 0.8};
 float cx[4] = {0, 0.54, 1.4, 1.6};
 float cy[4] = {0, 0, 0, 0};
 
-int N = 10; // liczba iteracji
+int N = 20; // liczba iteracji
 	   
 // zbiór punktów
 std::vector<float> x, y;
-int N_points_sqrt = 100; // pierwiastek kwadratowy liczby punktów 
+int N_points_sqrt = 1000; // pierwiastek kwadratowy liczby punktów 
 
 // dodajemy punkty do zbioru
 void setupSet() {
