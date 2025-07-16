@@ -1,5 +1,7 @@
 #include <SDL2/SDL.h>
 #include <vector>
+#include <array>
+#include <iostream>
 
 const int WIDTH=1280;
 const int HEIGHT=720;
@@ -53,11 +55,10 @@ void handleEvents() {
 
 // x'=ax*x+bx*y+cx
 // y'=ay*x+by*y+cy
-float* affineTransform(float ax, float bx, float ay, float by, float cx, float cy, float x, float y) {
+std::array<float, 2>  affineTransform(float ax, float bx, float ay, float by, float cx, float cy, float x, float y) {
 	float new_x = ax * x + bx * y + cx;
 	float new_y = ay * x + by * y + cy;
-	float result[] = {new_x, new_y};
-	return result;
+	return {new_x, new_y};
 }
 
 // PARAMTERY DO GENERACJI FRAKTALA
@@ -80,24 +81,37 @@ int N_points_sqrt = 100; // pierwiastek kwadratowy liczby punktów
 // dodajemy punkty do zbioru
 void setupSet() {
 	// równomiernie rozłożone w kwadracie o boku 1	
-	float sideLength = 1.0f;
+	float sideLength = 1000.0f;
 	float spacing = sideLength / (float) N_points_sqrt;
 	for (int i = 0; i < N_points_sqrt; i++) {
 		for (int j = 0; j < N_points_sqrt; j++) {
-			x.push_back(sideLength * (float) i);
-			y.push_back(sideLength * (float) j);
+			x.push_back(spacing*(float) i);
+			y.push_back(spacing*(float) j);
 		}
 	}
 }
 
 void generateFractal() {
+	for (int i = 0; i < N; i++) {
+		for (int j = 0; j < N_points_sqrt*N_points_sqrt; j++) {
+			int nt = std::rand() % 4;
+			std::array<float, 2> new_xy = affineTransform(ax[nt], bx[nt], ay[nt], by[nt], cx[nt], cy[nt], x.at(j), y.at(j));
+			x.at(j)=new_xy[0];
+			y.at(j)=new_xy[1];
+		}
+	}
 }
+
+float zoom = 100.0f;
 
 void draw() {
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0xFF);
 	SDL_RenderClear(renderer); 
 
 	SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, 0xFF); 
+	for (int i = 0; i < x.size(); i++) {
+		SDL_RenderDrawPoint(renderer, x.at(i) * zoom + WIDTH / 2, y.at(i) * zoom + HEIGHT / 2);
+	}	
 
 	SDL_RenderPresent(renderer); 
 }
