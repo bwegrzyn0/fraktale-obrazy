@@ -39,19 +39,58 @@ void close() {
 
 bool running = true;
 SDL_Event event;
+// góra, dół, prawo, lewo
+bool keysDown[] = {false, false, false, false};
 
 void handleEvents() {
-    while(SDL_PollEvent(&event)) { 
-        switch(event.type) { 
-            case SDL_QUIT:
-                running = false; 
-                printf("Quitting\n");
-                break;
-            default:
-                break;
-        }
-    }
+	while(SDL_PollEvent(&event)) { 
+		switch(event.type) { 
+			case SDL_KEYDOWN:
+				switch (event.key.keysym.sym) {
+					case SDLK_UP:
+						keysDown[0] = true;
+						break;
+					case SDLK_DOWN:
+						keysDown[1] = true;
+						break;
+					case SDLK_RIGHT:
+						keysDown[2] = true;
+						break;
+					case SDLK_LEFT:
+						keysDown[3] = true;
+						break;
+					default:
+						break;
+				}
+				break;
+			case SDL_KEYUP:
+				switch (event.key.keysym.sym) {
+					case SDLK_UP:
+						keysDown[0] = false;
+						break;
+					case SDLK_DOWN:
+						keysDown[1] = false;
+						break;
+					case SDLK_RIGHT:
+						keysDown[2] = false;
+						break;
+					case SDLK_LEFT:
+						keysDown[3] = false;
+						break;
+					default:
+						break;
+				}
+				break;
+			case SDL_QUIT:
+				running = false; 
+				printf("Quitting\n");
+				break;
+			default:
+				break;
+		}
+	}
 }
+
 
 // x'=ax*x+bx*y+cx
 // y'=ay*x+by*y+cy
@@ -63,8 +102,8 @@ std::array<float, 2>  affineTransform(float ax, float bx, float ay, float by, fl
 
 // PARAMTERY DO GENERACJI FRAKTALA
 int n = 4; // liczba transformacji
-// wszystkie parametry transformacji
-// dla paproci Barnsleya
+	   // wszystkie parametry transformacji
+	   // dla paproci Barnsleya
 float ax[4] = {0.24, 0.22, 0.14, 0.8};
 float bx[4] = {-0.007, -0.33, -0.36, 0.1};
 float ay[4] = {0.007, 0.36, -0.38, -0.1};
@@ -72,11 +111,11 @@ float by[4] = {0.015, 0.1, -0.1, 0.8};
 float cx[4] = {0, 0.54, 1.4, 1.6};
 float cy[4] = {0, 0, 0, 0};
 
-int N = 20; // liczba iteracji
-	   
+int N = 100; // liczba iteracji
+
 // zbiór punktów
 std::vector<float> x, y;
-int N_points_sqrt = 1000; // pierwiastek kwadratowy liczby punktów 
+int N_points_sqrt = 500; // pierwiastek kwadratowy liczby punktów 
 
 // dodajemy punkty do zbioru
 void setupSet() {
@@ -102,7 +141,30 @@ void generateFractal() {
 	}
 }
 
-float zoom = 100.0f;
+float zoom = 1000.0f;
+float cam_x = 0;
+float cam_y = 0;
+float cam_v = 5.0f;
+float cam_vx = 0;
+float cam_vy = 0;
+
+void updateCamera() {
+	if (keysDown[0]) 
+		cam_vy = -cam_v;
+	else if (keysDown[1]) 
+		cam_vy = cam_v;
+	else
+		cam_vy = 0;
+	if (keysDown[2]) 
+		cam_vx = cam_v;
+	else if (keysDown[3]) 
+		cam_vx = -cam_v;
+	else
+		cam_vx = 0;
+
+	cam_x += cam_vx;
+	cam_y += cam_vy;
+}
 
 void draw() {
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0xFF);
@@ -110,7 +172,11 @@ void draw() {
 
 	SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, 0xFF); 
 	for (int i = 0; i < x.size(); i++) {
-		SDL_RenderDrawPoint(renderer, x.at(i) * zoom + WIDTH / 2, y.at(i) * zoom + HEIGHT / 2);
+		float current_x = x.at(i) * zoom + WIDTH / 2 - cam_x;
+		float current_y = y.at(i) * zoom + HEIGHT / 2 - cam_y;
+		if (current_x <= WIDTH && current_x >= 0)
+			if (current_y <= HEIGHT && current_y >= 0)
+				SDL_RenderDrawPoint(renderer, current_x, current_y);
 	}	
 
 	SDL_RenderPresent(renderer); 
@@ -119,6 +185,7 @@ void draw() {
 void loop() {
 	while (running) {
 		handleEvents();
+		updateCamera();
 		draw();
 	}
 }
