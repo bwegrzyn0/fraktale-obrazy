@@ -116,7 +116,7 @@ int N = 100; // liczba iteracji
 
 // zbiór punktów
 std::vector<float> x, y;
-int N_points_sqrt = 500; // pierwiastek kwadratowy liczby punktów 
+int N_points_sqrt = 1000; // pierwiastek kwadratowy liczby punktów 
 
 // dodajemy punkty do zbioru
 void setupSet() {
@@ -149,7 +149,7 @@ float cam_v = 5.0f;
 float cam_vx = 0;
 float cam_vy = 0;
 
-void updateCamera() {
+void updateCamera(float delta) {
 	if (keysDown[0]) 
 		cam_vy = -cam_v;
 	else if (keysDown[1]) 
@@ -163,8 +163,9 @@ void updateCamera() {
 	else
 		cam_vx = 0;
 
-	cam_x += cam_vx;
-	cam_y += cam_vy;
+	// dzięki pomnożeniu przez delta kamera porusza się z taką samą prędkością niezależnie od FPS
+	cam_x += cam_vx * delta;
+	cam_y += cam_vy * delta;
 }
 
 void draw() {
@@ -200,9 +201,9 @@ void loop() {
 		lastTime = now;
 
 		if (delta >= 1) {
-			updateCamera();
+			updateCamera((float)delta);
 			draw();
-			delta--;
+			delta = 0;
 			frames++;
 		}
 
