@@ -1,7 +1,8 @@
 #include <SDL2/SDL.h>
 #include <vector>
 #include <array>
-#include <iostream>
+#include <chrono>
+#include <stdio.h>
 
 const int WIDTH=1280;
 const int HEIGHT=720;
@@ -182,12 +183,44 @@ void draw() {
 	SDL_RenderPresent(renderer); 
 }
 
+int FPS = 60; // docelowa liczba klatek na sekundę
+double deltaTime = 1000000000.0d / (float) FPS;
+double delta = 0;
+int frames= 0;
+
 void loop() {
+	auto lastTime = std::chrono::system_clock::now();
+	auto lastTimeFrames = std::chrono::system_clock::now();
 	while (running) {
+		auto now = std::chrono::system_clock::now();
+		auto duration = now - lastTime;
+		auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(duration);	
+		float timeElapsed = ns.count();
+		delta += timeElapsed / deltaTime;
+		lastTime = now;
+
+		if (delta >= 1) {
+			updateCamera();
+			draw();
+			delta--;
+			frames++;
+		}
+
 		handleEvents();
-		updateCamera();
-		draw();
+
+		// co sekundę wypisz szybkość programu w klatkach na sekundę
+		auto nowFrames = std::chrono::system_clock::now();
+		auto durationFrames = nowFrames - lastTimeFrames;
+		auto nsFrames = std::chrono::duration_cast<std::chrono::nanoseconds>(durationFrames);	
+		float timeElapsedFrames = nsFrames.count();
+		if (timeElapsedFrames >= 1000000000) {
+			printf("FPS: %d\n", frames);
+			frames = 0;
+			lastTimeFrames = nowFrames;
+		}
+
 	}
+
 }
 
 int main(int argc, char* argv[]) {
