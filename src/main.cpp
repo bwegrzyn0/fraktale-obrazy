@@ -5,8 +5,8 @@
 #include <stdio.h>
 #include <thread>
 
-const int WIDTH=1280;
-const int HEIGHT=720;
+const int WIDTH=1920;
+const int HEIGHT=1080;
 
 SDL_Window* window = NULL;
 SDL_Renderer* renderer = NULL;
@@ -44,9 +44,29 @@ SDL_Event event;
 // góra, dół, prawo, lewo
 bool keysDown[] = {false, false, false, false};
 
+// zoom kamery i krok 
+float zoom = 200.0f;
+float zoomFactor = 1.2f;
+
+// połozenie, prędkość kamery
+float cam_x = 0;
+float cam_y = 0;
+float cam_vx = 0;
+float cam_vy = 0;
+float cam_v = 0.2f;
+
 void handleEvents() {
 	while(SDL_PollEvent(&event)) { 
 		switch(event.type) { 
+			case SDL_MOUSEWHEEL:
+				if (event.wheel.y > 0)  {
+					zoom *= zoomFactor;
+					cam_v /= zoomFactor;
+				} else if (event.wheel.y < 0) {
+					zoom /= zoomFactor;
+					cam_v *= zoomFactor;
+				}
+				break;
 			case SDL_KEYDOWN:
 				switch (event.key.keysym.sym) {
 					case SDLK_UP:
@@ -114,11 +134,11 @@ float cx[4] = {0, 0.54, 1.4, 1.6};
 float cy[4] = {0, 0, 0, 0};
 float probabilities[4] = {0.04f, 0.149f, 0.16f, 0.687f};
 
-int N = 1000; // liczba iteracji
+int N = 10000; // liczba iteracji
 
 // zbiór punktów
 std::vector<float> x, y;
-int N_points_sqrt = 700; // pierwiastek kwadratowy liczby punktów 
+int N_points_sqrt = 500; // pierwiastek kwadratowy liczby punktów 
 
 // dodajemy punkty do zbioru
 void setupSet() {
@@ -152,12 +172,6 @@ void generateFractal() {
 	}
 }
 
-float zoom = 100.0f;
-float cam_x = 0;
-float cam_y = 0;
-float cam_v = 5.0f;
-float cam_vx = 0;
-float cam_vy = 0;
 
 void updateCamera(float delta) {
 	if (keysDown[0]) 
@@ -184,8 +198,8 @@ void draw() {
 
 	SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, 0xFF); 
 	for (int i = 0; i < x.size(); i++) {
-		float current_x = x.at(i) * zoom + WIDTH / 2 - cam_x;
-		float current_y = y.at(i) * zoom + HEIGHT / 2 - cam_y;
+		float current_x = (x.at(i) - cam_x) * zoom + cam_x + WIDTH / 2;
+		float current_y = (y.at(i) - cam_y) * zoom + cam_y + HEIGHT / 2;
 		if (current_x <= WIDTH && current_x >= 0)
 			if (current_y <= HEIGHT && current_y >= 0)
 				SDL_RenderDrawPoint(renderer, current_x, current_y);
