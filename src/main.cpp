@@ -3,6 +3,7 @@
 #include <array>
 #include <chrono>
 #include <stdio.h>
+#include <thread>
 
 const int WIDTH=1280;
 const int HEIGHT=720;
@@ -111,12 +112,13 @@ float ay[4] = {0.007, 0.36, -0.38, -0.1};
 float by[4] = {0.015, 0.1, -0.1, 0.8};
 float cx[4] = {0, 0.54, 1.4, 1.6};
 float cy[4] = {0, 0, 0, 0};
+float probabilities[4] = {0.04f, 0.149f, 0.16f, 0.687f};
 
-int N = 100; // liczba iteracji
+int N = 1000; // liczba iteracji
 
 // zbiór punktów
 std::vector<float> x, y;
-int N_points_sqrt = 1000; // pierwiastek kwadratowy liczby punktów 
+int N_points_sqrt = 700; // pierwiastek kwadratowy liczby punktów 
 
 // dodajemy punkty do zbioru
 void setupSet() {
@@ -134,7 +136,15 @@ void setupSet() {
 void generateFractal() {
 	for (int i = 0; i < N; i++) {
 		for (int j = 0; j < N_points_sqrt*N_points_sqrt; j++) {
-			int nt = std::rand() % 4;
+			int nt = std::rand() % 101;
+			if (nt >= 0 && nt < (int) (probabilities[0] * 100.0f))
+				nt = 0;
+			else if (nt >= (int) (probabilities[0] * 100.0f) && nt < (int) ((probabilities[0] + probabilities[1]) * 100.0f))
+				nt = 1;
+			else if (nt >= (int) ((probabilities[0]+ probabilities[1]) * 100.0f) && nt < (int) ((probabilities[0] + probabilities[1] + probabilities[2]) * 100.0f))
+				nt = 2;
+			else 
+				nt = 3;
 			std::array<float, 2> new_xy = affineTransform(ax[nt], bx[nt], ay[nt], by[nt], cx[nt], cy[nt], x.at(j), y.at(j));
 			x.at(j)=new_xy[0];
 			y.at(j)=new_xy[1];
@@ -142,7 +152,7 @@ void generateFractal() {
 	}
 }
 
-float zoom = 1000.0f;
+float zoom = 100.0f;
 float cam_x = 0;
 float cam_y = 0;
 float cam_v = 5.0f;
@@ -228,9 +238,15 @@ int main(int argc, char* argv[]) {
 	if (!init()) {
 		return 1;
 	}
+
 	setupSet();
-	generateFractal();
+
+	// uruchom równolegle generateFractal
+	std::thread t1(generateFractal);
+	t1.detach();
+
 	loop();
+
 	close();
 	return 0;
 }
