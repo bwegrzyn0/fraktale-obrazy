@@ -57,8 +57,8 @@ float zoom = 200.0f;
 float zoomFactor = 1.2f;
 
 // połozenie, prędkość kamery
-float cam_x = 0;
-float cam_y = 0;
+float cam_x = 5;
+float cam_y = 5;
 float cam_vx = 0;
 float cam_vy = 0;
 float cam_v = 0.2f;
@@ -140,9 +140,9 @@ float ay[4] = {0.007, 0.36, -0.38, -0.1};
 float by[4] = {0.015, 0.1, -0.1, 0.8};
 float cx[4] = {0, 0.54, 1.4, 1.6};
 float cy[4] = {0, 0, 0, 0};
-float probabilities[4] = {0.01f, 0.152f, 0.16f, 0.687f};
+float probabilities[4] = {0.01f, 0.152f, 0.241f, 0.6f};
 
-int N = 10000; // liczba iteracji
+int N = 1000; // liczba iteracji
 
 // zbiór punktów
 std::vector<float> x, y;
@@ -162,15 +162,17 @@ void setupSet() {
 }
 
 // rozmiar wyświetlanej powierzchni
-const float areaX = -1;
-const float areaY = -2;
-const float areaWidth = 6;
-const float areaHeight = 4;
-const float resolution = 300.0f; // pixeli na jednostkę areaWidth/areaHeight
+const float areaX = -5;
+const float areaY = -5;
+const float areaWidth = 15;
+const float areaHeight = 10;
+const float resolution = 200.0f; // pixeli na jednostkę areaWidth/areaHeight
 auto density = new float[(int) (areaWidth*resolution) + 1][(int) (areaHeight*resolution) + 1];
 float densityStep = 0.3f; // krok przy dodawaniu gęstości
+float maxDensity = 0;
 
 void generateFractal() {
+	maxDensity = 0;
 	for (int i = 0; i < (int) (areaWidth*resolution); i++) 
 		for (int j = 0; j < (int) (areaHeight*resolution); j++)
 			density[i][j] = 0;
@@ -191,8 +193,8 @@ void generateFractal() {
 			if (x.at(j) >= areaX && x.at(j) <= areaX + areaWidth) 
 				if (y.at(j) >= areaY && y.at(j) <= areaY + areaHeight) {
 					density[(int) ((x.at(j)-areaX) * resolution)][(int) ((y.at(j)-areaY) * resolution )] += densityStep;
-					if (density[(int) ((x.at(j)-areaX) * resolution )][(int) ((y.at(j)-areaY) * resolution )] > 255)
-						density[(int) ((x.at(j)-areaX) * resolution )][(int) ((y.at(j)-areaY) * resolution )] = 255;
+					if (density[(int) ((x.at(j)-areaX) * resolution )][(int) ((y.at(j)-areaY) * resolution )] > maxDensity)
+						maxDensity = density[(int) ((x.at(j)-areaX) * resolution )][(int) ((y.at(j)-areaY) * resolution )];
 				}
 		}
 	}
@@ -218,7 +220,7 @@ void updateCamera(float delta) {
 	cam_y += cam_vy * delta;
 }
 
-float minDensity = 10; // najmniejsza wyświetlana gęstość
+float minDensity = 5.0f; // najmniejsza wyświetlana gęstość
 // tablica odcieni szarości, aby nie liczyć ich w kółko
 auto gray = new Uint32[256];
 
@@ -233,15 +235,18 @@ void draw() {
 	SDL_UpdateTexture(texture, NULL, pixels, WIDTH * sizeof(Uint32));
 	memset(pixels, 0, WIDTH*HEIGHT*sizeof(Uint32));
 
+	int spacing = std::ceil(zoom / resolution);
 	for (int i = 0; i < (int) (areaWidth*resolution); i++) 
 		for (int j = 0; j < (int) (areaHeight*resolution); j++) {
 			if (density[i][j] < minDensity)
 				continue;
 			int current_x = (int) (((float) i / resolution - cam_x) * zoom + cam_x + WIDTH / 2);
 			int current_y = (int) (((float) j / resolution - cam_y) * zoom + cam_y + HEIGHT / 2);
-			if (current_x < WIDTH && current_x > 0)
-				if (current_y < HEIGHT && current_y > 0) {
-					pixels[current_y * WIDTH + current_x] = gray[(int) density[i][j]];
+			if (current_x < WIDTH - spacing && current_x > 0)
+				if (current_y < HEIGHT - spacing && current_y > 0) {
+					for (int x = 0; x < spacing; x++)
+						for (int y = 0; y < spacing; y++)
+							pixels[(current_y+y) * WIDTH + current_x + x] = gray[(int) (density[i][j] / maxDensity * 255)];
 					//	(((255 << 8) + (int) density[i][j] << 8) + (int) density[i][j] << 8) + (int) density[i][j];
 				}
 		}	
