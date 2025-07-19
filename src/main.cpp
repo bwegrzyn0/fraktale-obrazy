@@ -4,12 +4,15 @@
 #include <chrono>
 #include <stdio.h>
 #include <thread>
+#include <iostream>
 
 const int WIDTH=1920;
 const int HEIGHT=1080;
 
 SDL_Window* window = NULL;
 SDL_Renderer* renderer = NULL;
+SDL_Texture * texture;
+Uint32 * pixels = new Uint32[WIDTH * HEIGHT]; // piksele na ekranie
 
 bool init() {
 	bool success = true;
@@ -30,10 +33,15 @@ bool init() {
 		}
 
 	}
+	if (success) 
+		texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STATIC, WIDTH, HEIGHT);
 	return success;
 }
 
 void close() {
+	delete[] pixels;
+	SDL_DestroyTexture(texture);
+	SDL_DestroyRenderer(renderer);
 	SDL_DestroyWindow(window);
 	window = NULL;
 	SDL_Quit();
@@ -132,13 +140,13 @@ float ay[4] = {0.007, 0.36, -0.38, -0.1};
 float by[4] = {0.015, 0.1, -0.1, 0.8};
 float cx[4] = {0, 0.54, 1.4, 1.6};
 float cy[4] = {0, 0, 0, 0};
-float probabilities[4] = {0.04f, 0.149f, 0.16f, 0.687f};
+float probabilities[4] = {0.01f, 0.152f, 0.16f, 0.687f};
 
 int N = 10000; // liczba iteracji
 
 // zbiór punktów
 std::vector<float> x, y;
-int N_points_sqrt = 500; // pierwiastek kwadratowy liczby punktów 
+int N_points_sqrt = 1000; // pierwiastek kwadratowy liczby punktów 
 
 // dodajemy punkty do zbioru
 void setupSet() {
@@ -153,7 +161,19 @@ void setupSet() {
 	}
 }
 
+// rozmiar wyświetlanej powierzchni
+const float areaX = -1;
+const float areaY = -2;
+const float areaWidth = 6;
+const float areaHeight = 4;
+const float resolution = 300.0f; // pixeli na jednostkę areaWidth/areaHeight
+auto density = new float[(int) (areaWidth*resolution) + 1][(int) (areaHeight*resolution) + 1];
+float densityStep = 0.3f; // krok przy dodawaniu gęstości
+
 void generateFractal() {
+	for (int i = 0; i < (int) (areaWidth*resolution); i++) 
+		for (int j = 0; j < (int) (areaHeight*resolution); j++)
+			density[i][j] = 0;
 	for (int i = 0; i < N; i++) {
 		for (int j = 0; j < N_points_sqrt*N_points_sqrt; j++) {
 			int nt = std::rand() % 101;
@@ -168,6 +188,12 @@ void generateFractal() {
 			std::array<float, 2> new_xy = affineTransform(ax[nt], bx[nt], ay[nt], by[nt], cx[nt], cy[nt], x.at(j), y.at(j));
 			x.at(j)=new_xy[0];
 			y.at(j)=new_xy[1];
+			if (x.at(j) >= areaX && x.at(j) <= areaX + areaWidth) 
+				if (y.at(j) >= areaY && y.at(j) <= areaY + areaHeight) {
+					density[(int) ((x.at(j)-areaX) * resolution)][(int) ((y.at(j)-areaY) * resolution )] += densityStep;
+					if (density[(int) ((x.at(j)-areaX) * resolution )][(int) ((y.at(j)-areaY) * resolution )] > 255)
+						density[(int) ((x.at(j)-areaX) * resolution )][(int) ((y.at(j)-areaY) * resolution )] = 255;
+				}
 		}
 	}
 }
@@ -192,20 +218,37 @@ void updateCamera(float delta) {
 	cam_y += cam_vy * delta;
 }
 
+float minDensity = 10; // najmniejsza wyświetlana gęstość
+// tablica odcieni szarości, aby nie liczyć ich w kółko
+auto gray = new Uint32[256];
+
+// generuj odcienie szarości
+void generateGray() {
+	for (int i = 0; i < 256; i++) {
+		gray[i] =  (((255 << 8) + i << 8) + i << 8) + i;
+	}
+}
+
 void draw() {
-	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0xFF);
-	SDL_RenderClear(renderer); 
+	SDL_UpdateTexture(texture, NULL, pixels, WIDTH * sizeof(Uint32));
+	memset(pixels, 0, WIDTH*HEIGHT*sizeof(Uint32));
 
-	SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, 0xFF); 
-	for (int i = 0; i < x.size(); i++) {
-		float current_x = (x.at(i) - cam_x) * zoom + cam_x + WIDTH / 2;
-		float current_y = (y.at(i) - cam_y) * zoom + cam_y + HEIGHT / 2;
-		if (current_x <= WIDTH && current_x >= 0)
-			if (current_y <= HEIGHT && current_y >= 0)
-				SDL_RenderDrawPoint(renderer, current_x, current_y);
-	}	
+	for (int i = 0; i < (int) (areaWidth*resolution); i++) 
+		for (int j = 0; j < (int) (areaHeight*resolution); j++) {
+			if (density[i][j] < minDensity)
+				continue;
+			int current_x = (int) (((float) i / resolution - cam_x) * zoom + cam_x + WIDTH / 2);
+			int current_y = (int) (((float) j / resolution - cam_y) * zoom + cam_y + HEIGHT / 2);
+			if (current_x < WIDTH && current_x > 0)
+				if (current_y < HEIGHT && current_y > 0) {
+					pixels[current_y * WIDTH + current_x] = gray[(int) density[i][j]];
+					//	(((255 << 8) + (int) density[i][j] << 8) + (int) density[i][j] << 8) + (int) density[i][j];
+				}
+		}	
 
-	SDL_RenderPresent(renderer); 
+        SDL_RenderClear(renderer);
+        SDL_RenderCopy(renderer, texture, NULL, NULL);
+        SDL_RenderPresent(renderer);
 }
 
 int FPS = 60; // docelowa liczba klatek na sekundę
@@ -258,6 +301,8 @@ int main(int argc, char* argv[]) {
 	// uruchom równolegle generateFractal
 	std::thread t1(generateFractal);
 	t1.detach();
+
+	generateGray();
 
 	loop();
 
