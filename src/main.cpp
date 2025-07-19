@@ -4,7 +4,9 @@
 #include <chrono>
 #include <stdio.h>
 #include <thread>
-#include <iostream>
+#include "imgui/imgui.h"
+#include "imgui/imgui_impl_sdl2.h"
+#include "imgui/imgui_impl_sdlrenderer2.h"
 
 const int WIDTH=1920;
 const int HEIGHT=1080;
@@ -33,12 +35,20 @@ bool init() {
 		}
 
 	}
-	if (success) 
+	if (success) {
 		texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STATIC, WIDTH, HEIGHT);
+		IMGUI_CHECKVERSION();
+		ImGui::CreateContext();
+		ImGuiIO& io = ImGui::GetIO(); (void)io;
+		ImGui_ImplSDL2_InitForSDLRenderer(window, renderer);
+		ImGui_ImplSDLRenderer2_Init(renderer);
+	}
 	return success;
 }
 
 void close() {
+	ImGui_ImplSDL2_Shutdown();
+	ImGui::DestroyContext();
 	delete[] pixels;
 	SDL_DestroyTexture(texture);
 	SDL_DestroyRenderer(renderer);
@@ -65,6 +75,7 @@ float cam_v = 0.2f;
 
 void handleEvents() {
 	while(SDL_PollEvent(&event)) { 
+		ImGui_ImplSDL2_ProcessEvent(&event);
 		switch(event.type) { 
 			case SDL_MOUSEWHEEL:
 				if (event.wheel.y > 0)  {
@@ -146,7 +157,7 @@ int N = 1000; // liczba iteracji
 
 // zbiór punktów
 std::vector<float> x, y;
-int N_points_sqrt = 1000; // pierwiastek kwadratowy liczby punktów 
+int N_points_sqrt = 500; // pierwiastek kwadratowy liczby punktów 
 
 // dodajemy punkty do zbioru
 void setupSet() {
@@ -166,7 +177,7 @@ const float areaX = -5;
 const float areaY = -5;
 const float areaWidth = 15;
 const float areaHeight = 10;
-const float resolution = 200.0f; // pixeli na jednostkę areaWidth/areaHeight
+const float resolution = 100.0f; // pixeli na jednostkę areaWidth/areaHeight
 auto density = new float[(int) (areaWidth*resolution) + 1][(int) (areaHeight*resolution) + 1];
 float densityStep = 0.3f; // krok przy dodawaniu gęstości
 float maxDensity = 0;
@@ -253,15 +264,25 @@ void draw() {
 
         SDL_RenderClear(renderer);
         SDL_RenderCopy(renderer, texture, NULL, NULL);
+
+	ImGui_ImplSDLRenderer2_NewFrame();
+	ImGui_ImplSDL2_NewFrame();
+	ImGui::NewFrame();
+	ImGui::Begin("Hello, Dear ImGui with SDL2");
+	ImGui::Text("This is just a basic Hello World!");
+	ImGui::End();
+	ImGui::Render();
+	ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), renderer);
+	 
         SDL_RenderPresent(renderer);
 }
 
 int FPS = 60; // docelowa liczba klatek na sekundę
-double deltaTime = 1000000000.0d / (float) FPS;
-double delta = 0;
-int frames= 0;
 
 void loop() {
+	double deltaTime = 1000000000.0d / (float) FPS;
+	double delta = 0;
+	int frames= 0;
 	auto lastTime = std::chrono::system_clock::now();
 	auto lastTimeFrames = std::chrono::system_clock::now();
 	while (running) {
@@ -279,8 +300,6 @@ void loop() {
 			frames++;
 		}
 
-		handleEvents();
-
 		// co sekundę wypisz szybkość programu w klatkach na sekundę
 		auto nowFrames = std::chrono::system_clock::now();
 		auto durationFrames = nowFrames - lastTimeFrames;
@@ -293,7 +312,26 @@ void loop() {
 		}
 
 	}
+}
 
+// oddzielna pętla dla sprawdzania klawiszy itd. żeby nie lagowało
+void eventLoop() {
+	double deltaTime = 1000000000.0d / (float) FPS;
+	double delta = 0;
+	auto lastTime = std::chrono::system_clock::now();
+	while (running) {
+		auto now = std::chrono::system_clock::now();
+		auto duration = now - lastTime;
+		auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(duration);	
+		float timeElapsed = ns.count();
+		delta += timeElapsed / deltaTime;
+		lastTime = now;
+
+		if (delta >= 1) {
+			handleEvents();
+			delta = 0;
+		}
+	}
 }
 
 int main(int argc, char* argv[]) {
@@ -306,6 +344,9 @@ int main(int argc, char* argv[]) {
 	// uruchom równolegle generateFractal
 	std::thread t1(generateFractal);
 	t1.detach();
+	
+	std::thread t2(eventLoop);
+	t2.detach();
 
 	generateGray();
 
