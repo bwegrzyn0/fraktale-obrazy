@@ -132,85 +132,106 @@ void handleEvents() {
 	}
 }
 
+class GenerateFractal {
+	public:
+		// PARAMTERY DO GENERACJI FRAKTALA
+		int n = 4; // liczba transformacji
+			   // wszystkie parametry transformacji
+			   // dla paproci Barnsleya
+		float ax[4] = {0.24, 0.22, 0.14, 0.8};
+		float bx[4] = {-0.007, -0.33, -0.36, 0.1};
+		float ay[4] = {0.007, 0.36, -0.38, -0.1};
+		float by[4] = {0.015, 0.1, -0.1, 0.8};
+		float cx[4] = {0, 0.54, 1.4, 1.6};
+		float cy[4] = {0, 0, 0, 0};
+		float probabilities[4] = {0.01f, 0.152f, 0.241f, 0.6f};
 
-// x'=ax*x+bx*y+cx
-// y'=ay*x+by*y+cy
-std::array<float, 2>  affineTransform(float ax, float bx, float ay, float by, float cx, float cy, float x, float y) {
-	float new_x = ax * x + bx * y + cx;
-	float new_y = ay * x + by * y + cy;
-	return {new_x, new_y};
-}
+		int N; // liczba iteracji
 
-// PARAMTERY DO GENERACJI FRAKTALA
-int n = 4; // liczba transformacji
-	   // wszystkie parametry transformacji
-	   // dla paproci Barnsleya
-float ax[4] = {0.24, 0.22, 0.14, 0.8};
-float bx[4] = {-0.007, -0.33, -0.36, 0.1};
-float ay[4] = {0.007, 0.36, -0.38, -0.1};
-float by[4] = {0.015, 0.1, -0.1, 0.8};
-float cx[4] = {0, 0.54, 1.4, 1.6};
-float cy[4] = {0, 0, 0, 0};
-float probabilities[4] = {0.01f, 0.152f, 0.241f, 0.6f};
+		// zbiór punktów
+		std::vector<float> x, y;
+		int N_points_sqrt; // pierwiastek kwadratowy liczby punktów 
+					
+		// rozmiar wyświetlanej powierzchni
+		float areaX;
+		float areaY;
+		float areaWidth;
+		float areaHeight;
+		float resolution; // pixeli na jednostkę areaWidth/areaHeight
+		std::vector<std::vector<float>> density;
+		float densityStep; // krok przy dodawaniu gęstości
+		float maxDensity; 
+		bool generated;
 
-int N = 1000; // liczba iteracji
-
-// zbiór punktów
-std::vector<float> x, y;
-int N_points_sqrt = 500; // pierwiastek kwadratowy liczby punktów 
-
-// dodajemy punkty do zbioru
-void setupSet() {
-	// równomiernie rozłożone w kwadracie o boku 1	
-	float sideLength = 1000.0f;
-	float spacing = sideLength / (float) N_points_sqrt;
-	for (int i = 0; i < N_points_sqrt; i++) {
-		for (int j = 0; j < N_points_sqrt; j++) {
-			x.push_back(spacing*(float) i);
-			y.push_back(spacing*(float) j);
+		GenerateFractal() {
+			// domyślne parametry
+			N = 1000; 
+			N_points_sqrt = 500;
+			areaX = -5;
+			areaY = -5;
+			areaWidth = 15;
+			areaHeight = 10;
+			resolution = 100.0f;
+			densityStep = 0.3f; 
+			maxDensity = 0; 
+			generated = false;
 		}
-	}
-}
 
-// rozmiar wyświetlanej powierzchni
-const float areaX = -5;
-const float areaY = -5;
-const float areaWidth = 15;
-const float areaHeight = 10;
-const float resolution = 100.0f; // pixeli na jednostkę areaWidth/areaHeight
-auto density = new float[(int) (areaWidth*resolution) + 1][(int) (areaHeight*resolution) + 1];
-float densityStep = 0.3f; // krok przy dodawaniu gęstości
-float maxDensity = 0;
+		// x'=ax*x+bx*y+cx
+		// y'=ay*x+by*y+cy
+		std::array<float, 2>  affineTransform(float ax, float bx, float ay, float by, float cx, float cy, float x, float y) {
+			float new_x = ax * x + bx * y + cx;
+			float new_y = ay * x + by * y + cy;
+			return {new_x, new_y};
+		}
 
-void generateFractal() {
-	maxDensity = 0;
-	for (int i = 0; i < (int) (areaWidth*resolution); i++) 
-		for (int j = 0; j < (int) (areaHeight*resolution); j++)
-			density[i][j] = 0;
-	for (int i = 0; i < N; i++) {
-		for (int j = 0; j < N_points_sqrt*N_points_sqrt; j++) {
-			int nt = std::rand() % 101;
-			if (nt >= 0 && nt < (int) (probabilities[0] * 100.0f))
-				nt = 0;
-			else if (nt >= (int) (probabilities[0] * 100.0f) && nt < (int) ((probabilities[0] + probabilities[1]) * 100.0f))
-				nt = 1;
-			else if (nt >= (int) ((probabilities[0]+ probabilities[1]) * 100.0f) && nt < (int) ((probabilities[0] + probabilities[1] + probabilities[2]) * 100.0f))
-				nt = 2;
-			else 
-				nt = 3;
-			std::array<float, 2> new_xy = affineTransform(ax[nt], bx[nt], ay[nt], by[nt], cx[nt], cy[nt], x.at(j), y.at(j));
-			x.at(j)=new_xy[0];
-			y.at(j)=new_xy[1];
-			if (x.at(j) >= areaX && x.at(j) <= areaX + areaWidth) 
-				if (y.at(j) >= areaY && y.at(j) <= areaY + areaHeight) {
-					density[(int) ((x.at(j)-areaX) * resolution)][(int) ((y.at(j)-areaY) * resolution )] += densityStep;
-					if (density[(int) ((x.at(j)-areaX) * resolution )][(int) ((y.at(j)-areaY) * resolution )] > maxDensity)
-						maxDensity = density[(int) ((x.at(j)-areaX) * resolution )][(int) ((y.at(j)-areaY) * resolution )];
+
+		// dodajemy punkty do zbioru
+		void setupSet() {
+			// równomiernie rozłożone w kwadracie o boku 1	
+			float sideLength = 1000.0f;
+			float spacing = sideLength / (float) N_points_sqrt;
+			for (int i = 0; i < N_points_sqrt; i++) {
+				for (int j = 0; j < N_points_sqrt; j++) {
+					x.push_back(spacing*(float) i);
+					y.push_back(spacing*(float) j);
 				}
+			}
 		}
-	}
-}
 
+		void generateFractal() {
+			maxDensity = 0;
+			std::vector<float> zeroes((int) (areaHeight*resolution) + 1);
+			for (int i = 0; i < (int) (areaWidth*resolution) + 1; i++) {
+				density.push_back(zeroes);
+			}
+			generated = true;
+			for (int i = 0; i < N; i++) {
+				for (int j = 0; j < N_points_sqrt*N_points_sqrt; j++) {
+					int nt = std::rand() % 101;
+					if (nt >= 0 && nt < (int) (probabilities[0] * 100.0f))
+						nt = 0;
+					else if (nt >= (int) (probabilities[0] * 100.0f) && nt < (int) ((probabilities[0] + probabilities[1]) * 100.0f))
+						nt = 1;
+					else if (nt >= (int) ((probabilities[0]+ probabilities[1]) * 100.0f) && nt < (int) ((probabilities[0] + probabilities[1] + probabilities[2]) * 100.0f))
+						nt = 2;
+					else 
+						nt = 3;
+					std::array<float, 2> new_xy = affineTransform(ax[nt], bx[nt], ay[nt], by[nt], cx[nt], cy[nt], x[j], y[j]);
+					x[j]=new_xy[0];
+					y[j]=new_xy[1];
+					if (x[j] >= areaX && x[j] <= areaX + areaWidth) 
+						if (y[j] >= areaY && y[j] <= areaY + areaHeight) {
+							int xindex = (int) ((x[j]-areaX) * resolution);
+							int yindex = (int) ((y[j]-areaY) * resolution);
+							density[xindex][yindex] += densityStep;
+							if (density[xindex][yindex] > maxDensity)
+								maxDensity = density[xindex][yindex];
+						}
+				}
+			}
+		}
+};
 
 void updateCamera(float delta) {
 	if (keysDown[0]) 
@@ -231,7 +252,7 @@ void updateCamera(float delta) {
 	cam_y += cam_vy * delta;
 }
 
-float minDensity = 5.0f; // najmniejsza wyświetlana gęstość
+float minDensity = 0.1f; // najmniejsza wyświetlana gęstość jako część maksimum
 // tablica odcieni szarości, aby nie liczyć ich w kółko
 auto gray = new Uint32[256];
 
@@ -242,44 +263,47 @@ void generateGray() {
 	}
 }
 
-void draw() {
+void draw(GenerateFractal* gF) {
 	SDL_UpdateTexture(texture, NULL, pixels, WIDTH * sizeof(Uint32));
 	memset(pixels, 0, WIDTH*HEIGHT*sizeof(Uint32));
 
-	int spacing = std::ceil(zoom / resolution);
-	for (int i = 0; i < (int) (areaWidth*resolution); i++) 
-		for (int j = 0; j < (int) (areaHeight*resolution); j++) {
-			if (density[i][j] < minDensity)
-				continue;
-			int current_x = (int) (((float) i / resolution - cam_x) * zoom + cam_x + WIDTH / 2);
-			int current_y = (int) (((float) j / resolution - cam_y) * zoom + cam_y + HEIGHT / 2);
-			if (current_x < WIDTH - spacing && current_x > 0)
-				if (current_y < HEIGHT - spacing && current_y > 0) {
-					for (int x = 0; x < spacing; x++)
-						for (int y = 0; y < spacing; y++)
-							pixels[(current_y+y) * WIDTH + current_x + x] = gray[(int) (density[i][j] / maxDensity * 255)];
-					//	(((255 << 8) + (int) density[i][j] << 8) + (int) density[i][j] << 8) + (int) density[i][j];
-				}
-		}	
+	int spacing = std::ceil(zoom / (*gF).resolution);
+	float currentZoom = zoom; // jeśli w samym środku pętli zmieni się zoom to program się zcrashuje
+	float minDensityMax = minDensity * (*gF).maxDensity;
+	if ((*gF).generated)
+		for (int i = 0; i < (int) ((*gF).areaWidth*(*gF).resolution); i++) 
+			for (int j = 0; j < (int) ((*gF).areaHeight*(*gF).resolution); j++) {
+				if ((*gF).density[i][j] < minDensityMax)
+					continue;
+				int current_x = (int) (((float) i / (*gF).resolution - cam_x) * currentZoom + cam_x + WIDTH / 2);
+				int current_y = (int) (((float) j / (*gF).resolution - cam_y) * currentZoom + cam_y + HEIGHT / 2);
+				if (current_x < WIDTH - spacing && current_x > 0)
+					if (current_y < HEIGHT - spacing && current_y > 0) {
+						int pixelVal = (int) ((*gF).density[i][j] / (*gF).maxDensity * 255);
+						for (int x = 0; x < spacing; x++)
+							for (int y = 0; y < spacing; y++)
+								pixels[(current_y+y) * WIDTH + current_x + x] = gray[pixelVal];
+					}
+			}	
 
-        SDL_RenderClear(renderer);
-        SDL_RenderCopy(renderer, texture, NULL, NULL);
+	SDL_RenderClear(renderer);
+	SDL_RenderCopy(renderer, texture, NULL, NULL);
 
 	ImGui_ImplSDLRenderer2_NewFrame();
 	ImGui_ImplSDL2_NewFrame();
 	ImGui::NewFrame();
-	ImGui::Begin("Hello, Dear ImGui with SDL2");
-	ImGui::Text("This is just a basic Hello World!");
+	ImGui::Begin("Adjust parameters");
 	ImGui::End();
 	ImGui::Render();
 	ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), renderer);
 	 
         SDL_RenderPresent(renderer);
+
 }
 
 int FPS = 60; // docelowa liczba klatek na sekundę
 
-void loop() {
+void loop(GenerateFractal* gF) {
 	double deltaTime = 1000000000.0d / (float) FPS;
 	double delta = 0;
 	int frames= 0;
@@ -295,7 +319,7 @@ void loop() {
 
 		if (delta >= 1) {
 			updateCamera((float)delta);
-			draw();
+			draw(gF);
 			delta = 0;
 			frames++;
 		}
@@ -339,10 +363,10 @@ int main(int argc, char* argv[]) {
 		return 1;
 	}
 
-	setupSet();
-
+	GenerateFractal gF;
+	gF.setupSet();
 	// uruchom równolegle generateFractal
-	std::thread t1(generateFractal);
+	std::thread t1(&GenerateFractal::generateFractal, &gF);
 	t1.detach();
 	
 	std::thread t2(eventLoop);
@@ -350,7 +374,7 @@ int main(int argc, char* argv[]) {
 
 	generateGray();
 
-	loop();
+	loop(&gF);
 
 	close();
 	return 0;
