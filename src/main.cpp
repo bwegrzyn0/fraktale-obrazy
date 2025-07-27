@@ -82,8 +82,8 @@ float zoom = 200.0f;
 float zoomFactor = 1.1f;
 
 // połozenie, prędkość kamery
-float cam_x = 5;
-float cam_y = 5;
+float cam_x = 0;
+float cam_y = 0;
 float cam_vx = 0;
 float cam_vy = 0;
 float cam_v = 0.1f;
@@ -260,8 +260,14 @@ int framesSinceCalled = 0; // służy do wprowadzenia opóźnienia w kilkaniu gu
 int adjustResolution = 10;
 int adjustN = 50;
 int adjustNPoints = 500*500;
+
+int adjustAreaX = -5;
+int adjustAreaY = -5;
+int adjustAreaW = 15;
+int adjustAreaH = 10;
+
 int lastN = -1;
-bool threadCreated = false;
+
 void newFractal(GenerateFractal* currentFractal) {
 	lastN = -1;
 	framesSinceCalled = 0;
@@ -270,6 +276,10 @@ void newFractal(GenerateFractal* currentFractal) {
 	(*currentFractal).resolution = adjustResolution;
 	(*currentFractal).N = adjustN;
 	(*currentFractal).N_points_sqrt = (int) sqrt(adjustNPoints);
+	(*currentFractal).areaX = adjustAreaX;
+	(*currentFractal).areaY = adjustAreaY;
+	(*currentFractal).areaWidth = adjustAreaW;
+	(*currentFractal).areaHeight = adjustAreaH;
 	(*currentFractal).setupSet();
 	t = std::thread(&GenerateFractal::generateFractal, currentFractal);
 	t.detach();
@@ -313,7 +323,6 @@ float lastZoom = zoom;
 int actualFPS = 0; // faktyczna liczba klatek na sekundę
 
 void draw(GenerateFractal* gF) {
-
 	int spacing = std::ceil((float) zoom / (float) (*gF).resolution);
 	float floatSpacing = (float) zoom / (float) (*gF).resolution;
 	float currentZoom = zoom; // jeśli w samym środku pętli zmieni się zoom to program się zcrashuje
@@ -328,8 +337,8 @@ void draw(GenerateFractal* gF) {
 		if ((*gF).generated)
 			for (int sectorX = 0; sectorX < (*gF).areaWidth; sectorX++)
 				for (int sectorY = 0; sectorY < (*gF).areaHeight; sectorY++) {
-					int sector_x = (int) ((float) (sectorX+1) * currentZoom - cam_x * (currentZoom-1) + WIDTH / 2);
-					int sector_y = (int) ((float) (sectorY+1) * currentZoom- cam_y * (currentZoom-1) + HEIGHT / 2);
+					int sector_x = (int) ((float) ((*gF).areaX+sectorX+1) * currentZoom - cam_x * (currentZoom-1) + WIDTH / 2);
+					int sector_y = (int) ((float) ((*gF).areaY+sectorY+1) * currentZoom - cam_y * (currentZoom-1) + HEIGHT / 2);
 
 					if (sector_x < (int) (-(*gF).areaWidth * floatSpacing) || sector_x - currentZoom > (int) (WIDTH + (*gF).areaWidth * floatSpacing))
 						continue;
@@ -370,19 +379,32 @@ void draw(GenerateFractal* gF) {
 	ImGui::Text("Running at %d FPS", actualFPS);
 	ImGui::SliderFloat("Minimal value shown", &minDensity, 0.0f, 1.0f);
 	ImGui::SliderInt("Resolution", &adjustResolution, 0.0f, 200.0f);
-	ImGui::InputInt("Number of iterations", &adjustN);
+	ImGui::InputInt("Number of iterations", &adjustN, 10);
 	if (adjustN < 1)
 		adjustN = 1;
-//	ImGui::SliderFloat("Area X", &adjustAreaX, 
-	if (ImGui::Button("Generate!")) {
-		if (framesSinceCalled >= 10) {
-			newFractal(gF);
+	ImGui::InputInt("Number of points", &adjustNPoints, 10000);
+	if (adjustNPoints < 1)
+		adjustNPoints = 1;
+	
+	ImGui::InputInt("Area X", &adjustAreaX, 1);
+	ImGui::InputInt("Area Y", &adjustAreaY, 1);
+	ImGui::InputInt("Area width", &adjustAreaW, 1);
+	ImGui::InputInt("Area height", &adjustAreaH, 1);
+	if ((*gF).currentN + 1 != (*gF).N && !(*gF).killThread) {
+		if (ImGui::Button("Stop!")) {
+			(*gF).killThread = true;	
 		}
-	}
-	if ((*gF).currentN + 1 != (*gF).N) {
+
 		ImGui::Text("Generating fractal: %d/%d", (*gF).currentN + 1, (*gF).N);
-	} else 
+	} else {
+		if (ImGui::Button("Generate!")) {
+			if (framesSinceCalled >= 10) {
+				newFractal(gF);
+			}
+		}
+
 		ImGui::Text("Generated!");
+	}
 	ImGui::End();
 	ImGui::Render();
 	ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), renderer);
