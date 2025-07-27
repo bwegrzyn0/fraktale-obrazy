@@ -8,6 +8,7 @@
 #include "imgui/imgui_impl_sdl2.h"
 #include "imgui/imgui_impl_sdlrenderer2.h"
 #include <string>
+#include <cmath>
 
 const int WIDTH=1920;
 const int HEIGHT=1080;
@@ -168,11 +169,11 @@ class GenerateFractal {
 		int N_points_sqrt; // pierwiastek kwadratowy liczby punktów 
 					
 		// rozmiar wyświetlanej powierzchni
-		float areaX;
-		float areaY;
-		float areaWidth;
-		float areaHeight;
-		float resolution; // pixeli na jednostkę areaWidth/areaHeight
+		int areaX;
+		int areaY;
+		int areaWidth;
+		int areaHeight;
+		int resolution; // pixeli na jednostkę areaWidth/areaHeight
 		std::vector<std::vector<float>> density;
 		float densityStep; // krok przy dodawaniu gęstości
 		float maxDensity; 
@@ -257,12 +258,18 @@ class GenerateFractal {
 std::thread t;
 int framesSinceCalled = 0; // służy do wprowadzenia opóźnienia w kilkaniu guzikiem, bo inaczej thread nie nadąża skończyć pracy i jest błąd
 int adjustResolution = 10;
+int adjustN = 50;
+int adjustNPoints = 500*500;
+int lastN = -1;
 bool threadCreated = false;
 void newFractal(GenerateFractal* currentFractal) {
+	lastN = -1;
 	framesSinceCalled = 0;
 	(*currentFractal).killThread = true;	
 	(*currentFractal) = GenerateFractal();
-	(*currentFractal).resolution = (float) adjustResolution;
+	(*currentFractal).resolution = adjustResolution;
+	(*currentFractal).N = adjustN;
+	(*currentFractal).N_points_sqrt = (int) sqrt(adjustNPoints);
 	(*currentFractal).setupSet();
 	t = std::thread(&GenerateFractal::generateFractal, currentFractal);
 	t.detach();
@@ -298,7 +305,6 @@ void generateGray() {
 	}
 }
 
-int lastN = 0;
 float lastCamX = 0;
 float lastCamY = 0;
 float lastMinVal = minDensity;
@@ -308,35 +314,48 @@ int actualFPS = 0; // faktyczna liczba klatek na sekundę
 
 void draw(GenerateFractal* gF) {
 
-	int spacing = std::ceil(zoom / (*gF).resolution);
-	float floatSpacing = zoom / (*gF).resolution;
+	int spacing = std::ceil((float) zoom / (float) (*gF).resolution);
+	float floatSpacing = (float) zoom / (float) (*gF).resolution;
 	float currentZoom = zoom; // jeśli w samym środku pętli zmieni się zoom to program się zcrashuje
 	float minDensityMax = minDensity * (*gF).maxDensity;
 	if (!(lastCamX==cam_x && lastCamY == cam_y && lastN == (*gF).currentN && lastMinVal == minDensity && lastZoom == currentZoom)) {
 		lastCamX = cam_x;
 		lastCamY = cam_y;
-		lastN = (*gF).currentN;
 		lastMinVal = minDensity;
 		lastZoom = currentZoom;
+		lastN = (*gF).currentN;
 
 		if ((*gF).generated)
-			for (int i = 0; i < (int) ((*gF).areaWidth*(*gF).resolution); i++) 
-				for (int j = 0; j < (int) ((*gF).areaHeight*(*gF).resolution); j++) {
-					if ((*gF).density[i][j] < minDensityMax)
-						continue;
-					int current_x = (int) ((float) i * floatSpacing - cam_x * currentZoom + cam_x + WIDTH / 2);
-					int current_y = (int) ((float) j * floatSpacing - cam_y * currentZoom + cam_y + HEIGHT / 2);
+			for (int sectorX = 0; sectorX < (*gF).areaWidth; sectorX++)
+				for (int sectorY = 0; sectorY < (*gF).areaHeight; sectorY++) {
+					int sector_x = (int) ((float) (sectorX+1) * currentZoom - cam_x * (currentZoom-1) + WIDTH / 2);
+					int sector_y = (int) ((float) (sectorY+1) * currentZoom- cam_y * (currentZoom-1) + HEIGHT / 2);
 
-					if(current_x < WIDTH + spacing && current_x > -spacing) 
-						if (current_y < HEIGHT + spacing && current_y > -spacing)
-							for (int x = 0; x < spacing; x++)
-								for (int y = 0; y < spacing; y++)
-									if (current_x +x < WIDTH && current_x+x > 0)
-										if (current_y+y < HEIGHT && current_y+y > 0) {
-											int pixelVal = (int) ((*gF).density[i][j] / (*gF).maxDensity * 255);
-											pixels[(current_y+y) * WIDTH + current_x + x] = gray[pixelVal];
-										}
-				}	
+					if (sector_x < (int) (-(*gF).areaWidth * floatSpacing) || sector_x - currentZoom > (int) (WIDTH + (*gF).areaWidth * floatSpacing))
+						continue;
+					if (sector_y < (int) (-(*gF).areaHeight * floatSpacing) || sector_y - currentZoom > (int) (HEIGHT + (*gF).areaHeight * floatSpacing))
+						continue;
+					for (int i = 0; i < (int) (*gF).resolution; i++) 
+						for (int j = 0; j < (int) (*gF).resolution; j++) {
+							int currentI = i + sectorX * ((*gF).resolution);
+							int currentJ = j + sectorY * ((*gF).resolution);
+							if ((*gF).density[currentI][currentJ] < minDensityMax)
+								continue;
+							int current_x = (int) ((float) i * floatSpacing + sector_x - currentZoom);
+							int current_y = (int) ((float) j * floatSpacing + sector_y - currentZoom);
+
+							if(current_x < WIDTH + spacing && current_x > -spacing) 
+								if (current_y < HEIGHT + spacing && current_y > -spacing) {
+									int pixelVal = (int) ((*gF).density[currentI][currentJ] / (*gF).maxDensity * 255);
+									for (int x = 0; x < spacing; x++)
+										for (int y = 0; y < spacing; y++)
+											if (current_x +x < WIDTH && current_x+x > 0)
+												if (current_y+y < HEIGHT && current_y+y > 0) {
+													pixels[(current_y+y) * WIDTH + current_x + x] = gray[pixelVal];
+												}
+								}
+						}	
+				}
 		SDL_UpdateTexture(texture, NULL, pixels, WIDTH * sizeof(Uint32));
 		memset(pixels, 0, WIDTH*HEIGHT*sizeof(Uint32));
 	}
@@ -351,12 +370,19 @@ void draw(GenerateFractal* gF) {
 	ImGui::Text("Running at %d FPS", actualFPS);
 	ImGui::SliderFloat("Minimal value shown", &minDensity, 0.0f, 1.0f);
 	ImGui::SliderInt("Resolution", &adjustResolution, 0.0f, 200.0f);
+	ImGui::InputInt("Number of iterations", &adjustN);
+	if (adjustN < 1)
+		adjustN = 1;
 //	ImGui::SliderFloat("Area X", &adjustAreaX, 
 	if (ImGui::Button("Generate!")) {
 		if (framesSinceCalled >= 10) {
 			newFractal(gF);
 		}
 	}
+	if ((*gF).currentN + 1 != (*gF).N) {
+		ImGui::Text("Generating fractal: %d/%d", (*gF).currentN + 1, (*gF).N);
+	} else 
+		ImGui::Text("Generated!");
 	ImGui::End();
 	ImGui::Render();
 	ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), renderer);
