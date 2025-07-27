@@ -45,8 +45,8 @@ bool init() {
 		ImGuiIO& io = ImGui::GetIO(); (void)io;
 
 		float main_scale = ImGui_ImplSDL2_GetContentScaleForDisplay(0);
-		main_scale *= 1.5f;
-		
+		main_scale *= 1.4f;	
+
 		ImGui::StyleColorsDark();
 		//ImGui::StyleColorsLight();
 
@@ -208,7 +208,7 @@ class GenerateFractal {
 		// dodajemy punkty do zbioru
 		void setupSet() {
 			// równomiernie rozłożone w kwadracie o boku 1	
-			float sideLength = 1000.0f;
+			float sideLength = (areaWidth > areaHeight) ? areaWidth : areaHeight;
 			float spacing = sideLength / (float) N_points_sqrt;
 			for (int i = 0; i < N_points_sqrt; i++) {
 				for (int j = 0; j < N_points_sqrt; j++) {
@@ -257,7 +257,7 @@ class GenerateFractal {
 
 std::thread t;
 int framesSinceCalled = 0; // służy do wprowadzenia opóźnienia w kilkaniu guzikiem, bo inaczej thread nie nadąża skończyć pracy i jest błąd
-int adjustResolution = 10;
+int adjustResolution = 50;
 int adjustN = 50;
 int adjustNPoints = 500*500;
 
@@ -265,6 +265,14 @@ int adjustAreaX = -5;
 int adjustAreaY = -5;
 int adjustAreaW = 15;
 int adjustAreaH = 10;
+
+float ax[4] = {0.24, 0.22, 0.14, 0.8};
+float bx[4] = {-0.007, -0.33, -0.36, 0.1};
+float ay[4] = {0.007, 0.36, -0.38, -0.1};
+float by[4] = {0.015, 0.1, -0.1, 0.8};
+float cx[4] = {0, 0.54, 1.4, 1.6};
+float cy[4] = {0, 0, 0, 0};
+float probabilities[4] = {0.01f, 0.152f, 0.241f, 0.6f};
 
 int lastN = -1;
 
@@ -280,6 +288,15 @@ void newFractal(GenerateFractal* currentFractal) {
 	(*currentFractal).areaY = adjustAreaY;
 	(*currentFractal).areaWidth = adjustAreaW;
 	(*currentFractal).areaHeight = adjustAreaH;
+	for (int i = 0; i < 4; i++) {
+		(*currentFractal).ax[i] = ax[i];
+		(*currentFractal).bx[i] = bx[i];
+		(*currentFractal).ay[i] = ay[i];
+		(*currentFractal).by[i] = by[i];
+		(*currentFractal).cx[i] = cx[i];
+		(*currentFractal).cy[i] = cy[i];
+		(*currentFractal).probabilities[i] = probabilities[i];
+	}
 	(*currentFractal).setupSet();
 	t = std::thread(&GenerateFractal::generateFractal, currentFractal);
 	t.detach();
@@ -376,12 +393,16 @@ void draw(GenerateFractal* gF) {
 	ImGui_ImplSDL2_NewFrame();
 	ImGui::NewFrame();
 	ImGui::Begin("Adjust parameters");
+
 	ImGui::Text("Running at %d FPS", actualFPS);
+
 	ImGui::SliderFloat("Minimal value shown", &minDensity, 0.0f, 1.0f);
 	ImGui::SliderInt("Resolution", &adjustResolution, 0.0f, 200.0f);
+
 	ImGui::InputInt("Number of iterations", &adjustN, 10);
 	if (adjustN < 1)
 		adjustN = 1;
+
 	ImGui::InputInt("Number of points", &adjustNPoints, 10000);
 	if (adjustNPoints < 1)
 		adjustNPoints = 1;
@@ -390,6 +411,79 @@ void draw(GenerateFractal* gF) {
 	ImGui::InputInt("Area Y", &adjustAreaY, 1);
 	ImGui::InputInt("Area width", &adjustAreaW, 1);
 	ImGui::InputInt("Area height", &adjustAreaH, 1);
+
+	// żeby całk. prawdopod. było = 1
+	float probSum = probabilities[0] + probabilities[1] + probabilities[2] + probabilities[3];
+	if (probSum != 1.0f)
+		for (int i = 0; i < 4; i++)
+			probabilities[i] /= probSum;
+
+	if (ImGui::BeginTable("a", 5)) {
+		for (int j = 0; j < 7; j++) {
+			for (int i = 0; i < 5; i++) {
+				ImGui::TableNextColumn();
+				ImGui::SetNextItemWidth(-FLT_MIN);
+
+				ImGui::PushID(i + j * 4);
+				if (i >= 1)
+					switch (j) {
+						case 0:
+							ImGui::InputFloat("##", &ax[i-1]);
+							break;
+						case 1:
+							ImGui::InputFloat("##", &bx[i-1]);
+							break;
+						case 2:
+							ImGui::InputFloat("##", &ay[i-1]);
+							break;
+						case 3:
+							ImGui::InputFloat("##", &by[i-1]);
+							break;
+						case 4:
+							ImGui::InputFloat("##", &cx[i-1]);
+							break;
+						case 5:
+							ImGui::InputFloat("##", &cy[i-1]);
+							break;
+						case 6:
+							ImGui::SliderFloat("##", &probabilities[i-1], 0.0f, 1.0f);
+							break;
+					}
+				else
+					switch (j) {
+						case 0:
+							ImGui::Text("ax");
+							break;
+						case 1:
+							ImGui::Text("bx");
+							break;
+						case 2:
+							ImGui::Text("ay");
+							break;
+						case 3:
+							ImGui::Text("by");
+							break;
+						case 4:
+							ImGui::Text("cx");
+							break;
+						case 5:
+							ImGui::Text("cy");
+							break;
+						case 6:
+							ImGui::Text("prob, sum: %f", probSum);
+							break;
+					}
+
+
+
+				ImGui::PopID();
+			}
+
+
+		}
+		ImGui::EndTable();
+	}
+
 	if ((*gF).currentN + 1 != (*gF).N && !(*gF).killThread) {
 		if (ImGui::Button("Stop!")) {
 			(*gF).killThread = true;	
