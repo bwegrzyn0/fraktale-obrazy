@@ -7,9 +7,10 @@
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_sdl2.h"
 #include "imgui/imgui_impl_sdlrenderer2.h"
+#include <string>
 
-const int WIDTH=1280;
-const int HEIGHT=720;
+const int WIDTH=1920;
+const int HEIGHT=1080;
 
 SDL_Window* window = NULL;
 SDL_Renderer* renderer = NULL;
@@ -38,8 +39,21 @@ bool init() {
 	if (success) {
 		texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STATIC, WIDTH, HEIGHT);
 		IMGUI_CHECKVERSION();
+
 		ImGui::CreateContext();
 		ImGuiIO& io = ImGui::GetIO(); (void)io;
+
+		float main_scale = ImGui_ImplSDL2_GetContentScaleForDisplay(0);
+		main_scale *= 1.5f;
+		
+		ImGui::StyleColorsDark();
+		//ImGui::StyleColorsLight();
+
+		// Setup scaling
+		ImGuiStyle& style = ImGui::GetStyle();
+		style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
+		style.FontScaleDpi = main_scale;        // Set initial font scale. (using io.ConfigDpiScaleFonts=true makes this unnecessary. We leave both here for documentation purpose)
+							
 		ImGui_ImplSDL2_InitForSDLRenderer(window, renderer);
 		ImGui_ImplSDLRenderer2_Init(renderer);
 	}
@@ -147,6 +161,7 @@ class GenerateFractal {
 		float probabilities[4] = {0.01f, 0.152f, 0.241f, 0.6f};
 
 		int N; // liczba iteracji
+		int currentN; // obecna iteracja
 
 		// zbiór punktów
 		std::vector<float> x, y;
@@ -167,6 +182,7 @@ class GenerateFractal {
 		GenerateFractal() {
 			// domyślne parametry
 			N = 50; 
+			currentN = 0;
 			N_points_sqrt = 500;
 			areaX = -5;
 			areaY = -5;
@@ -209,6 +225,7 @@ class GenerateFractal {
 			}
 			generated = true;
 			for (int i = 0; i < N; i++) {
+				currentN = i;
 				for (int j = 0; j < N_points_sqrt*N_points_sqrt; j++) {
 					int nt = std::rand() % 101;
 					if (nt >= 0 && nt < (int) (probabilities[0] * 100.0f))
@@ -239,13 +256,13 @@ class GenerateFractal {
 
 std::thread t;
 int framesSinceCalled = 0; // służy do wprowadzenia opóźnienia w kilkaniu guzikiem, bo inaczej thread nie nadąża skończyć pracy i jest błąd
-float adjustResolution = 10.0f;
+int adjustResolution = 10;
 bool threadCreated = false;
 void newFractal(GenerateFractal* currentFractal) {
 	framesSinceCalled = 0;
 	(*currentFractal).killThread = true;	
 	(*currentFractal) = GenerateFractal();
-	(*currentFractal).resolution = adjustResolution;
+	(*currentFractal).resolution = (float) adjustResolution;
 	(*currentFractal).setupSet();
 	t = std::thread(&GenerateFractal::generateFractal, currentFractal);
 	t.detach();
@@ -281,32 +298,48 @@ void generateGray() {
 	}
 }
 
+int lastN = 0;
+float lastCamX = 0;
+float lastCamY = 0;
+float lastMinVal = minDensity;
+float lastZoom = zoom;
+
+int actualFPS = 0; // faktyczna liczba klatek na sekundę
+
 void draw(GenerateFractal* gF) {
-	SDL_UpdateTexture(texture, NULL, pixels, WIDTH * sizeof(Uint32));
-	memset(pixels, 0, WIDTH*HEIGHT*sizeof(Uint32));
 
 	int spacing = std::ceil(zoom / (*gF).resolution);
 	float floatSpacing = zoom / (*gF).resolution;
 	float currentZoom = zoom; // jeśli w samym środku pętli zmieni się zoom to program się zcrashuje
 	float minDensityMax = minDensity * (*gF).maxDensity;
-	if ((*gF).generated)
-		for (int i = 0; i < (int) ((*gF).areaWidth*(*gF).resolution); i++) 
-			for (int j = 0; j < (int) ((*gF).areaHeight*(*gF).resolution); j++) {
-				if ((*gF).density[i][j] < minDensityMax)
-					continue;
-				int current_x = (int) ((float) i * floatSpacing - cam_x * currentZoom + cam_x + WIDTH / 2);
-				int current_y = (int) ((float) j * floatSpacing - cam_y * currentZoom + cam_y + HEIGHT / 2);
+	if (!(lastCamX==cam_x && lastCamY == cam_y && lastN == (*gF).currentN && lastMinVal == minDensity && lastZoom == currentZoom)) {
+		lastCamX = cam_x;
+		lastCamY = cam_y;
+		lastN = (*gF).currentN;
+		lastMinVal = minDensity;
+		lastZoom = currentZoom;
 
-				if(current_x < WIDTH + spacing && current_x > -spacing) 
-					if (current_y < HEIGHT + spacing && current_y > -spacing)
-						for (int x = 0; x < spacing; x++)
-							for (int y = 0; y < spacing; y++)
-								if (current_x +x < WIDTH && current_x+x > 0)
-									if (current_y+y < HEIGHT && current_y+y > 0) {
-										int pixelVal = (int) ((*gF).density[i][j] / (*gF).maxDensity * 255);
-										pixels[(current_y+y) * WIDTH + current_x + x] = gray[pixelVal];
-									}
-			}	
+		if ((*gF).generated)
+			for (int i = 0; i < (int) ((*gF).areaWidth*(*gF).resolution); i++) 
+				for (int j = 0; j < (int) ((*gF).areaHeight*(*gF).resolution); j++) {
+					if ((*gF).density[i][j] < minDensityMax)
+						continue;
+					int current_x = (int) ((float) i * floatSpacing - cam_x * currentZoom + cam_x + WIDTH / 2);
+					int current_y = (int) ((float) j * floatSpacing - cam_y * currentZoom + cam_y + HEIGHT / 2);
+
+					if(current_x < WIDTH + spacing && current_x > -spacing) 
+						if (current_y < HEIGHT + spacing && current_y > -spacing)
+							for (int x = 0; x < spacing; x++)
+								for (int y = 0; y < spacing; y++)
+									if (current_x +x < WIDTH && current_x+x > 0)
+										if (current_y+y < HEIGHT && current_y+y > 0) {
+											int pixelVal = (int) ((*gF).density[i][j] / (*gF).maxDensity * 255);
+											pixels[(current_y+y) * WIDTH + current_x + x] = gray[pixelVal];
+										}
+				}	
+		SDL_UpdateTexture(texture, NULL, pixels, WIDTH * sizeof(Uint32));
+		memset(pixels, 0, WIDTH*HEIGHT*sizeof(Uint32));
+	}
 
 	SDL_RenderClear(renderer);
 	SDL_RenderCopy(renderer, texture, NULL, NULL);
@@ -315,8 +348,10 @@ void draw(GenerateFractal* gF) {
 	ImGui_ImplSDL2_NewFrame();
 	ImGui::NewFrame();
 	ImGui::Begin("Adjust parameters");
+	ImGui::Text("Running at %d FPS", actualFPS);
 	ImGui::SliderFloat("Minimal value shown", &minDensity, 0.0f, 1.0f);
-	ImGui::SliderFloat("Resolution", &adjustResolution, 0.0f, 200.0f);
+	ImGui::SliderInt("Resolution", &adjustResolution, 0.0f, 200.0f);
+//	ImGui::SliderFloat("Area X", &adjustAreaX, 
 	if (ImGui::Button("Generate!")) {
 		if (framesSinceCalled >= 10) {
 			newFractal(gF);
@@ -362,6 +397,7 @@ void loop(GenerateFractal* gF) {
 		float timeElapsedFrames = nsFrames.count();
 		if (timeElapsedFrames >= 1000000000) {
 			printf("FPS: %d\n", frames);
+			actualFPS = frames;
 			frames = 0;
 			lastTimeFrames = nowFrames;
 		}
