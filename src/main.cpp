@@ -261,10 +261,10 @@ int adjustResolution = 50;
 int adjustN = 50;
 int adjustNPoints = 500*500;
 
-int adjustAreaX = -5;
-int adjustAreaY = -5;
-int adjustAreaW = 15;
-int adjustAreaH = 10;
+int adjustAreaX = -1;
+int adjustAreaY = -4;
+int adjustAreaW = 9;
+int adjustAreaH = 7;
 
 float ax[4] = {0.24, 0.22, 0.14, 0.8};
 float bx[4] = {-0.007, -0.33, -0.36, 0.1};
@@ -272,7 +272,7 @@ float ay[4] = {0.007, 0.36, -0.38, -0.1};
 float by[4] = {0.015, 0.1, -0.1, 0.8};
 float cx[4] = {0, 0.54, 1.4, 1.6};
 float cy[4] = {0, 0, 0, 0};
-float probabilities[4] = {0.01f, 0.152f, 0.241f, 0.6f};
+float probabilities[4] = {0.017f, 0.152f, 0.241f, 0.6f};
 
 int lastN = -1;
 
@@ -324,6 +324,7 @@ void updateCamera(float delta) {
 float minDensity = 0.025f; // najmniejsza wyświetlana gęstość jako część maksimum
 // tablica odcieni szarości, aby nie liczyć ich w kółko
 auto gray = new Uint32[256];
+Uint32 red = (255 << 8) + 255 << 16;
 
 // generuj odcienie szarości
 void generateGray() {
@@ -338,18 +339,23 @@ float lastMinVal = minDensity;
 float lastZoom = zoom;
 
 int actualFPS = 0; // faktyczna liczba klatek na sekundę
+bool showAreaBorder = true;
+bool lastSAB = showAreaBorder;
 
 void draw(GenerateFractal* gF) {
 	int spacing = std::ceil((float) zoom / (float) (*gF).resolution);
 	float floatSpacing = (float) zoom / (float) (*gF).resolution;
 	float currentZoom = zoom; // jeśli w samym środku pętli zmieni się zoom to program się zcrashuje
 	float minDensityMax = minDensity * (*gF).maxDensity;
-	if (!(lastCamX==cam_x && lastCamY == cam_y && lastN == (*gF).currentN && lastMinVal == minDensity && lastZoom == currentZoom)) {
+	if (!(lastCamX==cam_x && lastCamY == cam_y && lastN == (*gF).currentN && lastMinVal == minDensity && lastZoom == currentZoom && lastSAB == showAreaBorder)) {
 		lastCamX = cam_x;
 		lastCamY = cam_y;
 		lastMinVal = minDensity;
 		lastZoom = currentZoom;
 		lastN = (*gF).currentN;
+		lastSAB = showAreaBorder;
+		int awr = (*gF).areaWidth * (*gF).resolution - 1;
+		int ahr = (*gF).areaHeight * (*gF).resolution - 1;
 
 		if ((*gF).generated)
 			for (int sectorX = 0; sectorX < (*gF).areaWidth; sectorX++)
@@ -365,19 +371,25 @@ void draw(GenerateFractal* gF) {
 						for (int j = 0; j < (int) (*gF).resolution; j++) {
 							int currentI = i + sectorX * ((*gF).resolution);
 							int currentJ = j + sectorY * ((*gF).resolution);
-							if ((*gF).density[currentI][currentJ] < minDensityMax)
+							if ((*gF).density[currentI][currentJ] < minDensityMax && currentI != 0 && currentI != awr && currentJ != 0 && currentJ != ahr)
 								continue;
 							int current_x = (int) ((float) i * floatSpacing + sector_x - currentZoom);
 							int current_y = (int) ((float) j * floatSpacing + sector_y - currentZoom);
 
 							if(current_x < WIDTH + spacing && current_x > -spacing) 
 								if (current_y < HEIGHT + spacing && current_y > -spacing) {
-									int pixelVal = (int) ((*gF).density[currentI][currentJ] / (*gF).maxDensity * 255);
+									int color = 0;
+									if (showAreaBorder && (currentI == 0 || currentI == awr || currentJ == 0 || currentJ == ahr)) {
+										color = red;
+									} else {
+										int pixelVal = (int) ((*gF).density[currentI][currentJ] / (*gF).maxDensity * 255);
+										color = gray[pixelVal];
+									}
 									for (int x = 0; x < spacing; x++)
 										for (int y = 0; y < spacing; y++)
 											if (current_x +x < WIDTH && current_x+x > 0)
 												if (current_y+y < HEIGHT && current_y+y > 0) {
-													pixels[(current_y+y) * WIDTH + current_x + x] = gray[pixelVal];
+													pixels[(current_y+y) * WIDTH + current_x + x] = color;
 												}
 								}
 						}	
@@ -397,7 +409,7 @@ void draw(GenerateFractal* gF) {
 	ImGui::Text("Running at %d FPS", actualFPS);
 
 	ImGui::SliderFloat("Minimal value shown", &minDensity, 0.0f, 1.0f);
-	ImGui::SliderInt("Resolution", &adjustResolution, 0.0f, 200.0f);
+	ImGui::SliderInt("Resolution", &adjustResolution, 0.0f, 500.0f);
 
 	ImGui::InputInt("Number of iterations", &adjustN, 10);
 	if (adjustN < 1)
@@ -411,6 +423,7 @@ void draw(GenerateFractal* gF) {
 	ImGui::InputInt("Area Y", &adjustAreaY, 1);
 	ImGui::InputInt("Area width", &adjustAreaW, 1);
 	ImGui::InputInt("Area height", &adjustAreaH, 1);
+	ImGui::Checkbox("Show area border", &showAreaBorder);
 
 	// żeby całk. prawdopod. było = 1
 	float probSum = probabilities[0] + probabilities[1] + probabilities[2] + probabilities[3];
@@ -470,7 +483,7 @@ void draw(GenerateFractal* gF) {
 							ImGui::Text("cy");
 							break;
 						case 6:
-							ImGui::Text("prob, sum: %f", probSum);
+							ImGui::Text("prob");
 							break;
 					}
 
