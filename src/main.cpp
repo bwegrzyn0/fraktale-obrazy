@@ -321,7 +321,6 @@ void updateCamera(float delta) {
 	cam_y += cam_vy * delta;
 }
 
-float minDensity = 0.025f; // najmniejsza wyświetlana gęstość jako część maksimum
 // tablica odcieni szarości, aby nie liczyć ich w kółko
 auto gray = new Uint32[256];
 Uint32 red = (255 << 8) + 255 << 16;
@@ -335,7 +334,6 @@ void generateGray() {
 
 float lastCamX = 0;
 float lastCamY = 0;
-float lastMinVal = minDensity;
 float lastZoom = zoom;
 
 int actualFPS = 0; // faktyczna liczba klatek na sekundę
@@ -343,19 +341,23 @@ bool showAreaBorder = true;
 bool lastSAB = showAreaBorder;
 
 void draw(GenerateFractal* gF) {
-	int spacing = std::ceil((float) zoom / (float) (*gF).resolution);
-	float floatSpacing = (float) zoom / (float) (*gF).resolution;
 	float currentZoom = zoom; // jeśli w samym środku pętli zmieni się zoom to program się zcrashuje
-	float minDensityMax = minDensity * (*gF).maxDensity;
-	if (!(lastCamX==cam_x && lastCamY == cam_y && lastN == (*gF).currentN && lastMinVal == minDensity && lastZoom == currentZoom && lastSAB == showAreaBorder)) {
+	if (!(lastCamX==cam_x && lastCamY == cam_y && lastN == (*gF).currentN && lastZoom == currentZoom && lastSAB == showAreaBorder)) {
 		lastCamX = cam_x;
 		lastCamY = cam_y;
-		lastMinVal = minDensity;
 		lastZoom = currentZoom;
 		lastN = (*gF).currentN;
 		lastSAB = showAreaBorder;
-		int awr = (*gF).areaWidth * (*gF).resolution - 1;
-		int ahr = (*gF).areaHeight * (*gF).resolution - 1;
+		float resFactor = (*gF).areaWidth * currentZoom / WIDTH * 0.75f;
+		if ((float) (*gF).resolution * resFactor < 10.0f)
+			resFactor = 10.0f / (float) (*gF).resolution;
+		if (resFactor > 1.0f)
+			resFactor = 1.0f;
+		if (resFactor < 0.1f)
+			resFactor = 0.1f;
+		int spacing = std::ceil((float) zoom / (float) (*gF).resolution / resFactor);
+		float floatSpacing = (float) zoom / (float) (*gF).resolution / resFactor;
+		int bounds = (int) ((*gF).resolution * resFactor);
 
 		if ((*gF).generated)
 			for (int sectorX = 0; sectorX < (*gF).areaWidth; sectorX++)
@@ -367,29 +369,30 @@ void draw(GenerateFractal* gF) {
 						continue;
 					if (sector_y < (int) (-(*gF).areaHeight * floatSpacing) || sector_y - currentZoom > (int) (HEIGHT + (*gF).areaHeight * floatSpacing))
 						continue;
-					for (int i = 0; i < (int) (*gF).resolution; i++) 
-						for (int j = 0; j < (int) (*gF).resolution; j++) {
-							int currentI = i + sectorX * ((*gF).resolution);
-							int currentJ = j + sectorY * ((*gF).resolution);
-							if ((*gF).density[currentI][currentJ] < minDensityMax && currentI != 0 && currentI != awr && currentJ != 0 && currentJ != ahr)
-								continue;
-							int current_x = (int) ((float) i * floatSpacing + sector_x - currentZoom);
-							int current_y = (int) ((float) j * floatSpacing + sector_y - currentZoom);
-
+					for (int i = 0; i < bounds; i++) 
+						for (int j = 0; j < bounds; j++) {
+							int currentI = std::floor((float) i / resFactor) + sectorX * ((*gF).resolution);
+							int currentJ = std::floor((float) j / resFactor) + sectorY * ((*gF).resolution);
+							int current_x = std::round((float) i * floatSpacing + sector_x - currentZoom);
+							int current_y = std::round((float) j * floatSpacing + sector_y - currentZoom);
 							if(current_x < WIDTH + spacing && current_x > -spacing) 
 								if (current_y < HEIGHT + spacing && current_y > -spacing) {
 									int color = 0;
-									if (showAreaBorder && (currentI == 0 || currentI == awr || currentJ == 0 || currentJ == ahr)) {
+									if (showAreaBorder && ((sectorX == 0 && i == 0) || 
+												(sectorY == 0 && j == 0) ||
+												(sectorX == (*gF).areaWidth - 1 && i == bounds - 1) || 
+												(sectorY == (*gF).areaHeight - 1 && j == bounds - 1))) {
 										color = red;
 									} else {
 										int pixelVal = (int) ((*gF).density[currentI][currentJ] / (*gF).maxDensity * 255);
 										color = gray[pixelVal];
 									}
-									for (int x = 0; x < spacing; x++)
-										for (int y = 0; y < spacing; y++)
+									for (int x = 0; x < spacing + ((i == bounds - 1 && sectorX != (*gF).areaWidth - 1) ? 5 : 0); x++)
+										for (int y = 0; y < spacing + ((j == bounds - 1 && sectorY != (*gF).areaHeight - 1) ? 5 : 0); y++)
 											if (current_x +x < WIDTH && current_x+x > 0)
 												if (current_y+y < HEIGHT && current_y+y > 0) {
-													pixels[(current_y+y) * WIDTH + current_x + x] = color;
+													if (pixels[(current_y+y) * WIDTH + current_x + x] != red)
+														pixels[(current_y+y) * WIDTH + current_x + x] = color;
 												}
 								}
 						}	
@@ -408,8 +411,7 @@ void draw(GenerateFractal* gF) {
 
 	ImGui::Text("Running at %d FPS", actualFPS);
 
-	ImGui::SliderFloat("Minimal value shown", &minDensity, 0.0f, 1.0f);
-	ImGui::SliderInt("Resolution", &adjustResolution, 0.0f, 500.0f);
+	ImGui::SliderInt("Resolution", &adjustResolution, 1.0f, 500.0f);
 
 	ImGui::InputInt("Number of iterations", &adjustN, 10);
 	if (adjustN < 1)
