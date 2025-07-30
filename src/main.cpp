@@ -230,8 +230,8 @@ class GenerateFractal {
 					std::array<float, 2> new_xy = affineTransform(ax[nt], bx[nt], ay[nt], by[nt], cx[nt], cy[nt], x[j], y[j]);
 					x[j]=new_xy[0];
 					y[j]=new_xy[1];
-					if (x[j] >= areaX && x[j] <= areaX + areaWidth) 
-						if (y[j] >= areaY && y[j] <= areaY + areaHeight) {
+					if (x[j] > areaX && x[j] < areaX + areaWidth) 
+						if (y[j] > areaY && y[j] < areaY + areaHeight) {
 							if (killThread)
 								return;
 							int xindex = (int) ((x[j]-areaX) * resolution);
@@ -403,6 +403,8 @@ void draw(GenerateFractal* gF) {
 		int add = (int) (4.0f * currentZoom / 200.0f);
 		float floatSpacing = (float) zoom / (float) (*gF).resolution / resFactor;
 		int bounds = (int) ((*gF).resolution * resFactor);
+		int xpixels = (*gF).areaWidth * (*gF).resolution;
+		int ypixels = (*gF).areaHeight * (*gF).resolution;
 
 		if ((*gF).generated) {
 			memset(pixels, 0, WIDTH*HEIGHT*sizeof(Uint32));
@@ -419,6 +421,8 @@ void draw(GenerateFractal* gF) {
 						for (int j = 0; j <= ((sectorY == (*gF).areaHeight- 1) ? bounds - 1 : bounds); j++) {
 							int currentI = std::floor((float) i / resFactor) + sectorX * ((*gF).resolution);
 							int currentJ = std::floor((float) j / resFactor) + sectorY * ((*gF).resolution);
+							if (currentI < 0 || currentJ < 0 || currentI > xpixels || currentJ > ypixels)
+								continue;
 							bool redCondition = showAreaBorder && ((sectorX == 0 && i == 0) || 
 									(sectorY == 0 && j == 0) ||
 									(sectorX == (*gF).areaWidth - 1 && i == bounds - 1) || 
@@ -452,7 +456,8 @@ void draw(GenerateFractal* gF) {
 						}	
 				}
 			SDL_UpdateTexture(texture, NULL, pixels, WIDTH * sizeof(Uint32));
-		}}
+		}
+	}
 
 	SDL_RenderClear(renderer);
 	SDL_RenderCopy(renderer, texture, NULL, NULL);
