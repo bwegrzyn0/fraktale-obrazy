@@ -217,6 +217,8 @@ class GenerateFractal {
 			for (int i = 0; i < N; i++) {
 				currentN = i;
 				for (int j = 0; j < N_points_sqrt*N_points_sqrt; j++) {
+					if (!running)
+						return;
 					int nt = std::rand() % 101;
 					if (nt >= 0 && nt < (int) (probabilities[0] * 100.0f))
 						nt = 0;
@@ -495,6 +497,10 @@ void draw(GenerateFractal* gF) {
 
 	// żeby całk. prawdopod. było = 1
 	float probSum = probabilities[0] + probabilities[1] + probabilities[2] + probabilities[3];
+	if (probSum == 0.0f) {
+		probabilities[0] = 1.0f;
+		probSum = 1.0f;
+	}
 	if (probSum != 1.0f)
 		for (int i = 0; i < 4; i++)
 			probabilities[i] /= probSum;
@@ -658,15 +664,15 @@ void eventLoop() {
 }
 
 void close(GenerateFractal* gF) {
+	delete[] pixels;
+	ImGui_ImplSDLRenderer2_Shutdown();
 	ImGui_ImplSDL2_Shutdown();
 	ImGui::DestroyContext();
-	delete[] pixels;
 	SDL_DestroyTexture(texture);
 	SDL_DestroyRenderer(renderer);
 	SDL_DestroyWindow(window);
 	window = NULL;
 	SDL_Quit();
-	delete gF;
 }
 
 int main(int argc, char* argv[]) {
