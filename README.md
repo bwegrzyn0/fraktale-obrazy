@@ -16,7 +16,6 @@ You will be met with the following interface inside the window:
 
 It is best for you to try each of the options yourself to see what they do. I will skim through all of them here, though:
 - __Brightness multiplier__: multiplies the brightness of all pixels by a given value. The brightest pixels (with value 255) will be unaffected.
-- __Minimal density shown__: for the sake of efficiency, you can set the minimal brightness a pixel must have to be rendered. The default value will usually be good enough.
 - __Resolution__: the number of pixels per unit of size. For example, if your area width is 10 and resolution is 100, the final image width will be 10*100=1000. Very high values will cause the framerate to drop significantly.
 - __Number of iterations__: the number of iterations of the IFSP algorithm.
 - __Number of points__: the number of points fed into the IFSP algorithm.
@@ -29,10 +28,19 @@ It is best for you to try each of the options yourself to see what they do. I wi
   transformed_y = a_y * x + b_y * y + c_y
   ```
   Each transformation also has its own probability, which doesn't affect the shape of the attractor. It only affects the density of points on it.
+  > [!TIP]
+  > If you want to for example have only 2 transformations, set the probabilities of the two other transformations to zero. The probabilities automatically adjust to sum up to one.
 - __Image file name__: the name of the image file (without extension).
 
 Images are saved as `.bmp` files in the directory where the program had been launched.
 
+You can move around and zoom in on the fractal using the arrow keys and by scrolling.
+
+## How does it work?
+The chosen number of points is uniformly distributed in a square and then the IFSP algorithm is performed on them. Each pixel has a density equal to the number of points inside it. Its brightness value is determined by the density - pixels with 0 points are black and pixels with the most points are white. 
+
+## License
+This program has no license and you can use it however you want.
   
   
   
