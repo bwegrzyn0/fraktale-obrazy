@@ -2,7 +2,7 @@ CC = g++
 OBJS= out/main.o out/imgui.o out/imgui_draw.o out/imgui_impl_sdl2.o out/imgui_impl_sdlrenderer2.o out/imgui_tables.o out/imgui_widgets.o
 HEADERS = ./src/
 TARGET = run.out
-FLAGS = -w
+FLAGS = -w -ggdb3
 LIBS = -lSDL2
 run: $(OBJS)
 	$(CC) -o $(TARGET) $(OBJS) $(LIBS) $(FLAGS)
