@@ -39,6 +39,14 @@ You can move around and zoom in on the fractal using the arrow keys and by scrol
 ## How does it work?
 The chosen number of points is uniformly distributed in a square and then the IFSP algorithm is performed on them. Each pixel has a density equal to the number of points inside it. Its brightness value is determined by the density - pixels with 0 points are black and pixels with the most points are white. 
 
+## Example images
+![Image of a fractal generated with fraktale-obrazy](images/bazia.jpg)
+![Image of a fractal generated with fraktale-obrazy](images/choinka.jpg)
+![Image of a fractal generated with fraktale-obrazy](images/sierpinsk.jpg)
+![Image of a fractal generated with fraktale-obrazy](images/kalafior.jpg)
+![Image of a fractal generated with fraktale-obrazy](images/dragon.jpg)
+
+
 ## License
 This program has no license and you can use it however you want.
   
