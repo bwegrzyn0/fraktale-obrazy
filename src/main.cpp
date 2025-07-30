@@ -214,7 +214,6 @@ class GenerateFractal {
 			}
 			zeroes.clear();
 			zeroes.shrink_to_fit();
-			generated = true;
 			for (int i = 0; i < N; i++) {
 				currentN = i;
 				for (int j = 0; j < N_points_sqrt*N_points_sqrt; j++) {
@@ -241,6 +240,7 @@ class GenerateFractal {
 								maxDensity = density[xindex][yindex];
 						}
 				}
+				generated = true;
 			}
 			x.clear();
 			y.clear();
@@ -337,7 +337,7 @@ bool lastSAB = showAreaBorder;
 float multiplier = 1.0f;
 float lastMultiplier = multiplier;
 
-float minDensity = 0.01f;
+float minDensity = 0.0f;
 float lastMinDensity = minDensity;
 float resFactor;
 
@@ -470,7 +470,7 @@ void draw(GenerateFractal* gF) {
 	ImGui::Text("Running at %d FPS", actualFPS);
 
 	ImGui::SliderFloat("Brightness multiplier", &multiplier, 0.5f, 5.0f);
-	ImGui::SliderFloat("Minimal density shown", &minDensity, 0.0f, 1.0f);
+//	ImGui::SliderFloat("Minimal density shown", &minDensity, 0.0f, 1.0f);
 
 	ImGui::SliderInt("Resolution", &adjustResolution, 1.0f, 500.0f);
 
@@ -487,6 +487,11 @@ void draw(GenerateFractal* gF) {
 	ImGui::InputInt("Area width", &adjustAreaW, 1);
 	ImGui::InputInt("Area height", &adjustAreaH, 1);
 	ImGui::Checkbox("Show area border", &showAreaBorder);
+
+	if (adjustAreaW < 1)
+		adjustAreaW = 1;
+	if (adjustAreaH < 1)
+		adjustAreaH = 1;
 
 	// żeby całk. prawdopod. było = 1
 	float probSum = probabilities[0] + probabilities[1] + probabilities[2] + probabilities[3];
