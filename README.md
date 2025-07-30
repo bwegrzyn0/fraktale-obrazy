@@ -28,6 +28,8 @@ It is best for you to try each of the options yourself to see what they do. I wi
   transformed_y = a_y * x + b_y * y + c_y
   ```
   Each transformation also has its own probability, which doesn't affect the shape of the attractor. It only affects the density of points on it.
+  > [!TIP]
+  > If you want to for example have only 2 transformations, set the probabilities of the two other transformations to zero. The probabilities automatically adjust to sum up to one.
 - __Image file name__: the name of the image file (without extension).
 
 Images are saved as `.bmp` files in the directory where the program had been launched.
