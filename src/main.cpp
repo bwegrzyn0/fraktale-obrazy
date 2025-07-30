@@ -177,14 +177,7 @@ class GenerateFractal {
 
 		GenerateFractal() {
 			// domyślne parametry
-			N = 50; 
 			currentN = 0;
-			N_points_sqrt = 500;
-			areaX = -5;
-			areaY = -5;
-			areaWidth = 15;
-			areaHeight = 10;
-			resolution = 100.0f;
 			densityStep = 0.3f; 
 			maxDensity = 0; 
 			generated = false;
@@ -364,11 +357,11 @@ void draw(GenerateFractal* gF);
 
 void saveImage(GenerateFractal* gF) {
 	savingDone = false;
-    	uint32_t width{(*gF).areaWidth * (*gF).resolution}, height{(*gF).areaHeight * (*gF).resolution};
+	uint32_t width{(*gF).areaWidth * (*gF).resolution}, height{(*gF).areaHeight * (*gF).resolution};
 	std::vector<uint8_t> image(width * height * 3);
 	auto channel{image.data()};
-	for (int i = 0; i < (*gF).areaWidth * (*gF).resolution; i++)  
-		for (int j = 0; j < (*gF).areaHeight * (*gF).resolution; j++) { 
+	for (int j = 0; j < height; j++) 
+		for (int i = 0; i < width; i++) {
 			int pixelVal = (int) (multiplier*((*gF).density[i][j] / (*gF).maxDensity * 255));
 			if (pixelVal > 255)
 				pixelVal = 255;
@@ -378,7 +371,7 @@ void saveImage(GenerateFractal* gF) {
 	std::string fullName(filename);
 	fullName.append(".bmp");
 	const char* path = fullName.c_str();
-    	const auto result{save_bmp(path, width, height, image.data())};
+	const auto result{save_bmp(path, width, height, image.data())};
 	image.clear();
 	image.shrink_to_fit();
 	savingDone = true;
@@ -411,55 +404,55 @@ void draw(GenerateFractal* gF) {
 		float floatSpacing = (float) zoom / (float) (*gF).resolution / resFactor;
 		int bounds = (int) ((*gF).resolution * resFactor);
 
-		if ((*gF).generated)
+		if ((*gF).generated) {
 			memset(pixels, 0, WIDTH*HEIGHT*sizeof(Uint32));
-		for (int sectorX = 0; sectorX < (*gF).areaWidth; sectorX++)
-			for (int sectorY = 0; sectorY < (*gF).areaHeight; sectorY++) {
-				int sector_x = (int) ((float) ((*gF).areaX+sectorX+1) * currentZoom - cam_x * (currentZoom-1) + WIDTH / 2);
-				int sector_y = (int) ((float) ((*gF).areaY+sectorY+1) * currentZoom - cam_y * (currentZoom-1) + HEIGHT / 2);
+			for (int sectorX = 0; sectorX < (*gF).areaWidth; sectorX++)
+				for (int sectorY = 0; sectorY < (*gF).areaHeight; sectorY++) {
+					int sector_x = (int) ((float) ((*gF).areaX+sectorX+1) * currentZoom - cam_x * (currentZoom-1) + WIDTH / 2);
+					int sector_y = (int) ((float) ((*gF).areaY+sectorY+1) * currentZoom - cam_y * (currentZoom-1) + HEIGHT / 2);
 
-				if (sector_x < (int) (-(*gF).areaWidth * floatSpacing) || sector_x - currentZoom > (int) (WIDTH + (*gF).areaWidth * floatSpacing))
-					continue;
-				if (sector_y < (int) (-(*gF).areaHeight * floatSpacing) || sector_y - currentZoom > (int) (HEIGHT + (*gF).areaHeight * floatSpacing))
-					continue;
-				for (int i = 0; i <= ((sectorX == (*gF).areaWidth - 1) ? bounds - 1 : bounds); i++) 
-					for (int j = 0; j <= ((sectorY == (*gF).areaHeight- 1) ? bounds - 1 : bounds); j++) {
-						int currentI = std::floor((float) i / resFactor) + sectorX * ((*gF).resolution);
-						int currentJ = std::floor((float) j / resFactor) + sectorY * ((*gF).resolution);
-						bool redCondition = showAreaBorder && ((sectorX == 0 && i == 0) || 
-								(sectorY == 0 && j == 0) ||
-								(sectorX == (*gF).areaWidth - 1 && i == bounds - 1) || 
-								(sectorY == (*gF).areaHeight - 1 && j == bounds - 1));
-						if ((*gF).density[currentI][currentJ] < minDensityMax && !redCondition)
-							continue;
-						int current_x = std::round((float) i * floatSpacing + sector_x - currentZoom);
-						int current_y = std::round((float) j * floatSpacing + sector_y - currentZoom);
-						if(current_x < WIDTH + spacing && current_x > -spacing) 
-							if (current_y < HEIGHT + spacing && current_y > -spacing) {
-								int color = 0;
-								if (redCondition) {
-									color = red;
-								} else {
-									int pixelVal = (int) (multiplier*((*gF).density[currentI][currentJ] / (*gF).maxDensity * 255));
-									if (pixelVal > 255)
-										pixelVal = 255;
-									color = gray[pixelVal];
+					if (sector_x < (int) (-(*gF).areaWidth * floatSpacing) || sector_x - currentZoom > (int) (WIDTH + (*gF).areaWidth * floatSpacing))
+						continue;
+					if (sector_y < (int) (-(*gF).areaHeight * floatSpacing) || sector_y - currentZoom > (int) (HEIGHT + (*gF).areaHeight * floatSpacing))
+						continue;
+					for (int i = 0; i <= ((sectorX == (*gF).areaWidth - 1) ? bounds - 1 : bounds); i++) 
+						for (int j = 0; j <= ((sectorY == (*gF).areaHeight- 1) ? bounds - 1 : bounds); j++) {
+							int currentI = std::floor((float) i / resFactor) + sectorX * ((*gF).resolution);
+							int currentJ = std::floor((float) j / resFactor) + sectorY * ((*gF).resolution);
+							bool redCondition = showAreaBorder && ((sectorX == 0 && i == 0) || 
+									(sectorY == 0 && j == 0) ||
+									(sectorX == (*gF).areaWidth - 1 && i == bounds - 1) || 
+									(sectorY == (*gF).areaHeight - 1 && j == bounds - 1));
+							if ((*gF).density[currentI][currentJ] < minDensityMax && !redCondition)
+								continue;
+							int current_x = std::round((float) i * floatSpacing + sector_x - currentZoom);
+							int current_y = std::round((float) j * floatSpacing + sector_y - currentZoom);
+							if(current_x < WIDTH + spacing && current_x > -spacing) 
+								if (current_y < HEIGHT + spacing && current_y > -spacing) {
+									int color = 0;
+									if (redCondition) {
+										color = red;
+									} else {
+										int pixelVal = (int) (multiplier*((*gF).density[currentI][currentJ] / (*gF).maxDensity * 255));
+										if (pixelVal > 255)
+											pixelVal = 255;
+										color = gray[pixelVal];
+									}
+									int addX = (i == bounds - 1 && sectorX != (*gF).areaWidth - 1 && (*gF).density[currentI + 1][currentJ] > minDensityMax && (*gF).density[currentI + 1][currentJ + 1] >= minDensityMax) ? add : 0;
+									int addY = (j == bounds - 1 && sectorY != (*gF).areaHeight - 1 && (*gF).density[currentI][currentJ + 1] >= minDensityMax && (*gF).density[currentI + 1][currentJ + 1] >= minDensityMax) ? add : 0;
+
+									for (int x = 0; x < spacing + addX; x++)
+										for (int y = 0; y < spacing + addY; y++)
+											if (current_x +x < WIDTH && current_x+x > 0)
+												if (current_y+y < HEIGHT && current_y+y > 0) {
+													if (pixels[(current_y+y) * WIDTH + current_x + x] != red) 
+														pixels[(current_y+y) * WIDTH + current_x + x] = color;
+												}
 								}
-								int addX = (i == bounds - 1 && sectorX != (*gF).areaWidth - 1 && (*gF).density[currentI + 1][currentJ] > minDensityMax && (*gF).density[currentI + 1][currentJ + 1] >= minDensityMax) ? add : 0;
-								int addY = (j == bounds - 1 && sectorY != (*gF).areaHeight - 1 && (*gF).density[currentI][currentJ + 1] >= minDensityMax && (*gF).density[currentI + 1][currentJ + 1] >= minDensityMax) ? add : 0;
-
-								for (int x = 0; x < spacing + addX; x++)
-									for (int y = 0; y < spacing + addY; y++)
-										if (current_x +x < WIDTH && current_x+x > 0)
-											if (current_y+y < HEIGHT && current_y+y > 0) {
-												if (pixels[(current_y+y) * WIDTH + current_x + x] != red)
-													pixels[(current_y+y) * WIDTH + current_x + x] = color;
-											}
-							}
-					}	
-			}
-		SDL_UpdateTexture(texture, NULL, pixels, WIDTH * sizeof(Uint32));
-	}
+						}	
+				}
+			SDL_UpdateTexture(texture, NULL, pixels, WIDTH * sizeof(Uint32));
+		}}
 
 	SDL_RenderClear(renderer);
 	SDL_RenderCopy(renderer, texture, NULL, NULL);
