@@ -1,4 +1,4 @@
-![Image of a fractal generated with fraktale-obrazy](readme_image.jpg)
+![Image of a fractal generated with fraktale-obrazy](images/readme_image.jpg)
 *An image generated with the program*
 # fraktale-obrazy
 A simple program written in C++ using SDL2, which lets you generate and save images of fractals.
@@ -12,7 +12,7 @@ Clone this github repo: `git clone https://github.com/bwegrzyn0/fraktale-obrazy`
 ## Usage 
 You will be met with the following interface inside the window:
 
-![Image of a fractal generated with fraktale-obrazy](interface_image.jpg)
+![Image of a fractal generated with fraktale-obrazy](images/interface_image.jpg)
 
 It is best for you to try each of the options yourself to see what they do. I will skim through all of them here, though:
 - __Brightness multiplier__: multiplies the brightness of all pixels by a given value. The brightest pixels (with value 255) will be unaffected.
