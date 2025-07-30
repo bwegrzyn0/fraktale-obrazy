@@ -1,14 +1,19 @@
-#include <SDL2/SDL.h>
 #include <vector>
 #include <array>
 #include <chrono>
 #include <stdio.h>
 #include <thread>
+#include <string>
+#include <cmath>
+
+#include <SDL2/SDL.h>
+
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_sdl2.h"
 #include "imgui/imgui_impl_sdlrenderer2.h"
-#include <string>
-#include <cmath>
+
+#define SAVE_BMP_IMPLEMENT
+#include "save_bmp.h"
 
 const int WIDTH=1920;
 const int HEIGHT=1080;
@@ -16,7 +21,7 @@ const int HEIGHT=1080;
 SDL_Window* window = NULL;
 SDL_Renderer* renderer = NULL;
 SDL_Texture * texture;
-Uint32 * pixels = new Uint32[WIDTH * HEIGHT]; // piksele na ekranie
+Uint32* pixels = new Uint32[WIDTH * HEIGHT]; // piksele na ekranie
 
 bool init() {
 	bool success = true;
@@ -24,7 +29,7 @@ bool init() {
 		printf("Could not init SDL: %s\n", SDL_GetError());
 		success = false;
 	} else {
-		window = SDL_CreateWindow("grav-sim", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WIDTH, HEIGHT, SDL_WINDOW_SHOWN);
+		window = SDL_CreateWindow("fraktale-obrazy", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WIDTH, HEIGHT, SDL_WINDOW_SHOWN);
 		if (window == NULL) {
 			printf("Could not create window: %s\n", SDL_GetError());
 			success = false;
@@ -38,6 +43,7 @@ bool init() {
 
 	}
 	if (success) {
+		SDL_SetWindowResizable(window, SDL_FALSE);
 		texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STATIC, WIDTH, HEIGHT);
 		IMGUI_CHECKVERSION();
 
@@ -45,7 +51,6 @@ bool init() {
 		ImGuiIO& io = ImGui::GetIO(); (void)io;
 
 		float main_scale = ImGui_ImplSDL2_GetContentScaleForDisplay(0);
-		main_scale *= 1.4f;	
 
 		ImGui::StyleColorsDark();
 		//ImGui::StyleColorsLight();
@@ -54,23 +59,13 @@ bool init() {
 		ImGuiStyle& style = ImGui::GetStyle();
 		style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
 		style.FontScaleDpi = main_scale;        // Set initial font scale. (using io.ConfigDpiScaleFonts=true makes this unnecessary. We leave both here for documentation purpose)
-							
+
 		ImGui_ImplSDL2_InitForSDLRenderer(window, renderer);
 		ImGui_ImplSDLRenderer2_Init(renderer);
 	}
 	return success;
 }
 
-void close() {
-	ImGui_ImplSDL2_Shutdown();
-	ImGui::DestroyContext();
-	delete[] pixels;
-	SDL_DestroyTexture(texture);
-	SDL_DestroyRenderer(renderer);
-	SDL_DestroyWindow(window);
-	window = NULL;
-	SDL_Quit();
-}
 
 bool running = true;
 SDL_Event event;
@@ -167,7 +162,7 @@ class GenerateFractal {
 		// zbiór punktów
 		std::vector<float> x, y;
 		int N_points_sqrt; // pierwiastek kwadratowy liczby punktów 
-					
+
 		// rozmiar wyświetlanej powierzchni
 		int areaX;
 		int areaY;
@@ -224,6 +219,8 @@ class GenerateFractal {
 			for (int i = 0; i < (int) (areaWidth*resolution) + 1; i++) {
 				density.push_back(zeroes);
 			}
+			zeroes.clear();
+			zeroes.shrink_to_fit();
 			generated = true;
 			for (int i = 0; i < N; i++) {
 				currentN = i;
@@ -252,6 +249,10 @@ class GenerateFractal {
 						}
 				}
 			}
+			x.clear();
+			y.clear();
+			x.shrink_to_fit();
+			y.shrink_to_fit();
 		}
 };
 
@@ -340,65 +341,124 @@ int actualFPS = 0; // faktyczna liczba klatek na sekundę
 bool showAreaBorder = true;
 bool lastSAB = showAreaBorder;
 
+float multiplier = 1.0f;
+float lastMultiplier = multiplier;
+
+float minDensity = 0.01f;
+float lastMinDensity = minDensity;
+float resFactor;
+
+bool cameraSet = false;
+void setCamera(GenerateFractal* gF) {
+	float wzoom = WIDTH / (*gF).areaWidth;
+	float hzoom = HEIGHT / (*gF).areaHeight;
+	zoom = (wzoom < hzoom) ? wzoom : hzoom;
+	cam_x = ((*gF).areaX * zoom + (*gF).areaWidth * zoom / 2) / (zoom - 1.0f);
+	cam_y = ((*gF).areaY * zoom + (*gF).areaHeight * zoom / 2) / (zoom - 1.0f);
+}	
+
+bool savingDone = false;
+char filename[10] = "image";
+
+void draw(GenerateFractal* gF);
+
+void saveImage(GenerateFractal* gF) {
+	savingDone = false;
+    	uint32_t width{(*gF).areaWidth * (*gF).resolution}, height{(*gF).areaHeight * (*gF).resolution};
+	std::vector<uint8_t> image(width * height * 3);
+	auto channel{image.data()};
+	for (int i = 0; i < (*gF).areaWidth * (*gF).resolution; i++)  
+		for (int j = 0; j < (*gF).areaHeight * (*gF).resolution; j++) { 
+			int pixelVal = (int) (multiplier*((*gF).density[i][j] / (*gF).maxDensity * 255));
+			if (pixelVal > 255)
+				pixelVal = 255;
+			for (int a = 0; a < 3; a++)
+				*channel++ = static_cast<uint8_t>(pixelVal);
+		}
+	std::string fullName(filename);
+	fullName.append(".bmp");
+	const char* path = fullName.c_str();
+    	const auto result{save_bmp(path, width, height, image.data())};
+	image.clear();
+	image.shrink_to_fit();
+	savingDone = true;
+}
+
 void draw(GenerateFractal* gF) {
+	if (!cameraSet) {
+		setCamera(gF);
+		cameraSet = true;
+	}
 	float currentZoom = zoom; // jeśli w samym środku pętli zmieni się zoom to program się zcrashuje
-	if (!(lastCamX==cam_x && lastCamY == cam_y && lastN == (*gF).currentN && lastZoom == currentZoom && lastSAB == showAreaBorder)) {
+	if (!(minDensity == lastMinDensity && lastCamX==cam_x && lastCamY == cam_y && lastN == (*gF).currentN && lastZoom == currentZoom && lastSAB == showAreaBorder && lastMultiplier == multiplier)) {
+		lastMinDensity = minDensity;
 		lastCamX = cam_x;
 		lastCamY = cam_y;
 		lastZoom = currentZoom;
 		lastN = (*gF).currentN;
 		lastSAB = showAreaBorder;
-		float resFactor = (*gF).areaWidth * currentZoom / WIDTH * 0.75f;
+		lastMultiplier = multiplier;
+		resFactor = currentZoom / (float) (*gF).resolution * 0.5f;
 		if ((float) (*gF).resolution * resFactor < 10.0f)
 			resFactor = 10.0f / (float) (*gF).resolution;
 		if (resFactor > 1.0f)
 			resFactor = 1.0f;
 		if (resFactor < 0.1f)
 			resFactor = 0.1f;
+		float minDensityMax = minDensity * (*gF).maxDensity;
 		int spacing = std::ceil((float) zoom / (float) (*gF).resolution / resFactor);
+		int add = (int) (4.0f * currentZoom / 200.0f);
 		float floatSpacing = (float) zoom / (float) (*gF).resolution / resFactor;
 		int bounds = (int) ((*gF).resolution * resFactor);
 
 		if ((*gF).generated)
-			for (int sectorX = 0; sectorX < (*gF).areaWidth; sectorX++)
-				for (int sectorY = 0; sectorY < (*gF).areaHeight; sectorY++) {
-					int sector_x = (int) ((float) ((*gF).areaX+sectorX+1) * currentZoom - cam_x * (currentZoom-1) + WIDTH / 2);
-					int sector_y = (int) ((float) ((*gF).areaY+sectorY+1) * currentZoom - cam_y * (currentZoom-1) + HEIGHT / 2);
+			memset(pixels, 0, WIDTH*HEIGHT*sizeof(Uint32));
+		for (int sectorX = 0; sectorX < (*gF).areaWidth; sectorX++)
+			for (int sectorY = 0; sectorY < (*gF).areaHeight; sectorY++) {
+				int sector_x = (int) ((float) ((*gF).areaX+sectorX+1) * currentZoom - cam_x * (currentZoom-1) + WIDTH / 2);
+				int sector_y = (int) ((float) ((*gF).areaY+sectorY+1) * currentZoom - cam_y * (currentZoom-1) + HEIGHT / 2);
 
-					if (sector_x < (int) (-(*gF).areaWidth * floatSpacing) || sector_x - currentZoom > (int) (WIDTH + (*gF).areaWidth * floatSpacing))
-						continue;
-					if (sector_y < (int) (-(*gF).areaHeight * floatSpacing) || sector_y - currentZoom > (int) (HEIGHT + (*gF).areaHeight * floatSpacing))
-						continue;
-					for (int i = 0; i < bounds; i++) 
-						for (int j = 0; j < bounds; j++) {
-							int currentI = std::floor((float) i / resFactor) + sectorX * ((*gF).resolution);
-							int currentJ = std::floor((float) j / resFactor) + sectorY * ((*gF).resolution);
-							int current_x = std::round((float) i * floatSpacing + sector_x - currentZoom);
-							int current_y = std::round((float) j * floatSpacing + sector_y - currentZoom);
-							if(current_x < WIDTH + spacing && current_x > -spacing) 
-								if (current_y < HEIGHT + spacing && current_y > -spacing) {
-									int color = 0;
-									if (showAreaBorder && ((sectorX == 0 && i == 0) || 
-												(sectorY == 0 && j == 0) ||
-												(sectorX == (*gF).areaWidth - 1 && i == bounds - 1) || 
-												(sectorY == (*gF).areaHeight - 1 && j == bounds - 1))) {
-										color = red;
-									} else {
-										int pixelVal = (int) ((*gF).density[currentI][currentJ] / (*gF).maxDensity * 255);
-										color = gray[pixelVal];
-									}
-									for (int x = 0; x < spacing + ((i == bounds - 1 && sectorX != (*gF).areaWidth - 1) ? 5 : 0); x++)
-										for (int y = 0; y < spacing + ((j == bounds - 1 && sectorY != (*gF).areaHeight - 1) ? 5 : 0); y++)
-											if (current_x +x < WIDTH && current_x+x > 0)
-												if (current_y+y < HEIGHT && current_y+y > 0) {
-													if (pixels[(current_y+y) * WIDTH + current_x + x] != red)
-														pixels[(current_y+y) * WIDTH + current_x + x] = color;
-												}
+				if (sector_x < (int) (-(*gF).areaWidth * floatSpacing) || sector_x - currentZoom > (int) (WIDTH + (*gF).areaWidth * floatSpacing))
+					continue;
+				if (sector_y < (int) (-(*gF).areaHeight * floatSpacing) || sector_y - currentZoom > (int) (HEIGHT + (*gF).areaHeight * floatSpacing))
+					continue;
+				for (int i = 0; i <= ((sectorX == (*gF).areaWidth - 1) ? bounds - 1 : bounds); i++) 
+					for (int j = 0; j <= ((sectorY == (*gF).areaHeight- 1) ? bounds - 1 : bounds); j++) {
+						int currentI = std::floor((float) i / resFactor) + sectorX * ((*gF).resolution);
+						int currentJ = std::floor((float) j / resFactor) + sectorY * ((*gF).resolution);
+						bool redCondition = showAreaBorder && ((sectorX == 0 && i == 0) || 
+								(sectorY == 0 && j == 0) ||
+								(sectorX == (*gF).areaWidth - 1 && i == bounds - 1) || 
+								(sectorY == (*gF).areaHeight - 1 && j == bounds - 1));
+						if ((*gF).density[currentI][currentJ] < minDensityMax && !redCondition)
+							continue;
+						int current_x = std::round((float) i * floatSpacing + sector_x - currentZoom);
+						int current_y = std::round((float) j * floatSpacing + sector_y - currentZoom);
+						if(current_x < WIDTH + spacing && current_x > -spacing) 
+							if (current_y < HEIGHT + spacing && current_y > -spacing) {
+								int color = 0;
+								if (redCondition) {
+									color = red;
+								} else {
+									int pixelVal = (int) (multiplier*((*gF).density[currentI][currentJ] / (*gF).maxDensity * 255));
+									if (pixelVal > 255)
+										pixelVal = 255;
+									color = gray[pixelVal];
 								}
-						}	
-				}
+								int addX = (i == bounds - 1 && sectorX != (*gF).areaWidth - 1 && (*gF).density[currentI + 1][currentJ] > minDensityMax && (*gF).density[currentI + 1][currentJ + 1] >= minDensityMax) ? add : 0;
+								int addY = (j == bounds - 1 && sectorY != (*gF).areaHeight - 1 && (*gF).density[currentI][currentJ + 1] >= minDensityMax && (*gF).density[currentI + 1][currentJ + 1] >= minDensityMax) ? add : 0;
+
+								for (int x = 0; x < spacing + addX; x++)
+									for (int y = 0; y < spacing + addY; y++)
+										if (current_x +x < WIDTH && current_x+x > 0)
+											if (current_y+y < HEIGHT && current_y+y > 0) {
+												if (pixels[(current_y+y) * WIDTH + current_x + x] != red)
+													pixels[(current_y+y) * WIDTH + current_x + x] = color;
+											}
+							}
+					}	
+			}
 		SDL_UpdateTexture(texture, NULL, pixels, WIDTH * sizeof(Uint32));
-		memset(pixels, 0, WIDTH*HEIGHT*sizeof(Uint32));
 	}
 
 	SDL_RenderClear(renderer);
@@ -411,6 +471,9 @@ void draw(GenerateFractal* gF) {
 
 	ImGui::Text("Running at %d FPS", actualFPS);
 
+	ImGui::SliderFloat("Brightness multiplier", &multiplier, 0.5f, 5.0f);
+	ImGui::SliderFloat("Minimal density shown", &minDensity, 0.0f, 1.0f);
+
 	ImGui::SliderInt("Resolution", &adjustResolution, 1.0f, 500.0f);
 
 	ImGui::InputInt("Number of iterations", &adjustN, 10);
@@ -420,7 +483,7 @@ void draw(GenerateFractal* gF) {
 	ImGui::InputInt("Number of points", &adjustNPoints, 10000);
 	if (adjustNPoints < 1)
 		adjustNPoints = 1;
-	
+
 	ImGui::InputInt("Area X", &adjustAreaX, 1);
 	ImGui::InputInt("Area Y", &adjustAreaY, 1);
 	ImGui::InputInt("Area width", &adjustAreaW, 1);
@@ -508,19 +571,28 @@ void draw(GenerateFractal* gF) {
 	} else {
 		if (ImGui::Button("Generate!")) {
 			if (framesSinceCalled >= 10) {
+				savingDone = false;
 				newFractal(gF);
 			}
 		}
 
 		ImGui::Text("Generated!");
 	}
+	ImGui::InputText("Image file name (no extension)", filename, 10);
+	if ((*gF).currentN + 1 == (*gF).N || (*gF).killThread)
+		if (ImGui::Button("Save image in BMP format")) {
+			saveImage(gF);
+		}
+	if (savingDone)
+		ImGui::Text("Finished");
 	ImGui::End();
 	ImGui::Render();
 	ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), renderer);
 
 	framesSinceCalled++;
-	 
-        SDL_RenderPresent(renderer);
+
+
+	SDL_RenderPresent(renderer);
 
 }
 
@@ -582,6 +654,18 @@ void eventLoop() {
 	}
 }
 
+void close(GenerateFractal* gF) {
+	ImGui_ImplSDL2_Shutdown();
+	ImGui::DestroyContext();
+	delete[] pixels;
+	SDL_DestroyTexture(texture);
+	SDL_DestroyRenderer(renderer);
+	SDL_DestroyWindow(window);
+	window = NULL;
+	SDL_Quit();
+	delete gF;
+}
+
 int main(int argc, char* argv[]) {
 	if (!init()) {
 		return 1;
@@ -589,7 +673,7 @@ int main(int argc, char* argv[]) {
 
 	GenerateFractal gF;
 	newFractal(&gF);
-	
+
 	std::thread t(eventLoop);
 	t.detach();
 
@@ -597,6 +681,6 @@ int main(int argc, char* argv[]) {
 
 	loop(&gF);
 
-	close();
+	close(&gF);
 	return 0;
 }
