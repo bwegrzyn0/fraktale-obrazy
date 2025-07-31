@@ -6,6 +6,8 @@ A simple program written in C++ using SDL2, which lets you generate and save ima
 > [!NOTE]
 > This is just a small project of mine that grew a bit. The program may be buggy and inefficient.
 
+Plik readme w języku polskim :poland: jest dostępny na <a href="https://bwegrzyn0.github.io/programowanie/fraktale-obrazy-program-umo%C5%BCliwiaj%C4%85cy-generowanie-fraktali" target="_blank">mojej stronie internetowej</a>.
+
 ## Installation
 Clone this github repo: `git clone https://github.com/bwegrzyn0/fraktale-obrazy` and run the program with `./run.out`.
 
@@ -15,8 +17,8 @@ You will be met with the following interface inside the window:
 ![Image of a fractal generated with fraktale-obrazy](images/interface_image.jpg)
 
 It is best for you to try each of the options yourself to see what they do. I will skim through all of them here, though:
-- __Brightness multiplier__: multiplies the brightness of all pixels by a given value. The brightest pixels (with value 255) will be unaffected.
-- __Resolution__: the number of pixels per unit of size. For example, if your area width is 10 and resolution is 100, the final image width will be 10*100=1000. Very high values will cause the framerate to drop significantly.
+- __Brightness multiplier__: multiplies the brightness of all pixels by a given value.
+- __Resolution__: the number of pixels per unit of size. For example, if your area width is 10 and resolution is 100, the final image width will be 10*100=1000. Very high values will cause the framerate to drop. To counteract this effect, the displayed resolution will be lowered when zoomed out (it won't affect the saved image). 
 - __Number of iterations__: the number of iterations of the IFSP algorithm.
 - __Number of points__: the number of points fed into the IFSP algorithm.
 - __Area X and Area Y__: the X and Y coordinates of the area in which the fractal will be generated.
